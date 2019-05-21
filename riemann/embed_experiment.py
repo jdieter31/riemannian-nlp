@@ -2,8 +2,7 @@ import logging
 import timeit
 import torch
 
-from geoopt.manifolds.sphere import Sphere
-from geoopt.manifolds.poincare import PoincareBall
+from geoopt import PoincareBall, Sphere
 from geoopt.optim import RiemannianAdam, RiemannianSGD
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
