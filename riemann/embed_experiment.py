@@ -42,12 +42,12 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 300
-    dimension = 15
+    dimension = 100
     manifold_name = "Product"
     eval_every = 10
     gpu = 0
-    submanifold_names = ["Poincare", "Euclidean", "Sphere"]
-    submanifold_shapes = [[5], [5], [5]]
+    submanifold_names = ["Poincare", "Euclidean"]
+    submanifold_shapes = [[50], [50]]
 
 
 def get_manifold_from_name(manifold_name):

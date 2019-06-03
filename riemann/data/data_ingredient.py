@@ -15,7 +15,7 @@ def config():
     burnin = False
     num_workers = 4
     num_negs = 50
-    batch_size = 10
+    batch_size = 20
     sample_dampening = 0.75
 
 @data_ingredient.capture
