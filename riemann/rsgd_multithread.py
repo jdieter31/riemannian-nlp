@@ -33,7 +33,7 @@ class RiemannianSGD(Optimizer):
 
                 d_p = p.grad.data
                 d_p = manifold.egrad2rgrad(p.data, d_p)
-                p.data.copy_(manifold.retr(p.data, d_p, -lr).data)
+                manifold.retr(p.data, d_p, -lr)
                 
 
         return loss
