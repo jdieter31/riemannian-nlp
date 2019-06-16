@@ -10,9 +10,10 @@ from manifold_embedding import ManifoldEmbedding
 eval_ingredient = Ingredient('evaluation')
 
 eval_queue = None
+log_queue = None
 
 
-def async_eval(adj, log):
+def async_eval(adj, log_queue):
     global eval_queue
     if eval_queue is None:
         return
@@ -30,6 +31,7 @@ def async_eval(adj, log):
         manifold = params["manifold"]
         objects = params["objects"]
         dimension = params["dimension"]
+        double_precision = params["double_precision"]
 
         model = ManifoldEmbedding(
             manifold,
@@ -39,7 +41,6 @@ def async_eval(adj, log):
         model.to(torch.device('cpu'))
         model.load_state_dict(params["model"])
         embeddings = model.weight.data
-
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist)
         lmsg = {
             'epoch': epoch,
@@ -48,13 +49,15 @@ def async_eval(adj, log):
             'mean_rank': meanrank,
             'map_rank': maprank
         }
-        log.info(f"Stats: {json.dumps(lmsg)}")
+        log_queue.put(f"Stats: {json.dumps(lmsg)}")
 
 @eval_ingredient.capture
-def initialize(adjacent_list, _log):
+def initialize_eval(adjacent_list, log_queue_):
+    global log_queue
+    log_queue = log_queue_
     global eval_queue
     eval_queue = mp.Queue()
-    process = mp.Process(target=async_eval, args=(adjacent_list, _log))
+    process = mp.Process(target=async_eval, args=(adjacent_list, log_queue_))
     process.start()
 
 @eval_ingredient.capture

@@ -7,18 +7,12 @@ from setuptools import setup, Extension
 from Cython.Build import cythonize
 import numpy
 
-extra_compile_args = ['-std=c++11']
-# Super hacky way of determining if clang or gcc is being used
-CC = sysconfig.get_config_vars().get('CC', 'gcc').split(' ')[0]
-out = check_output([CC, '--version'])
-if re.search('apple *llvm', str(out.lower())):
-    extra_compile_args.append('-stdlib=libc++')
 
 extensions = [Extension(
         "data.graph_dataset",
         ["data/graph_dataset.pyx"],
         include_dirs=[numpy.get_include(), "."],
-        extra_compile_args=extra_compile_args,
+        extra_compile_args = ["-std=c++11", "-stdlib=libc++"],
         language='c++',
     )]
 

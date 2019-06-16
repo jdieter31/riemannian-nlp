@@ -2,22 +2,27 @@ import logging
 import timeit
 import torch
 
-from geoopt import PoincareBall, Sphere
-from geoopt.optim import RiemannianAdam, RiemannianSGD
+from geoopt import PoincareBall, Sphere, Euclidean, Product
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from euclidean_manifold import EuclideanManifold
 from manifold_embedding import ManifoldEmbedding
 
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
-from product_manifold import ProductManifold
-from save_ingredient import save_ingredient, save
-from eval_ingredient import evaluate, initialize
+from embed_save import save_ingredient, save
+from embed_eval import evaluate, initialize_eval
+from train import train
+from manifold_initialization import initialization_ingredient, apply_initialization
+
+from rsgd_multithread import RiemannianSGD
+
+from torch.distributions import uniform
 
 import numpy as np
 
-ex = Experiment('Embed', ingredients=[data_ingredient, save_ingredient])
+import torch.multiprocessing as mp
+
+ex = Experiment('Embed', ingredients=[data_ingredient, save_ingredient, initialization_ingredient])
 
 ex.observers.append(FileStorageObserver.create("experiments"))
 
@@ -41,41 +46,41 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 300
-    dimension = 100
+    n_epochs = 400
+    dimension = 5
     manifold_name = "Product"
     eval_every = 10
-    gpu = 0
-    submanifold_names = ["Poincare", "Euclidean"]
-    submanifold_shapes = [[50], [50]]
+    gpu = -1
+    train_threads = 4
+    submanifold_names = ["PoincareBall", "Sphere"]
+    double_precision = True
+    submanifold_shapes = [[3], [2]]
+    learning_rate = 0.3
 
-
-def get_manifold_from_name(manifold_name):
+@ex.capture
+def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
     manifold = None
     if manifold_name == "Euclidean":
-        manifold = EuclideanManifold()
-    elif manifold_name == "Poincare":
-        manifold = PoincareBall()
-    elif manifold_name == "Sphere":
-        manifold = Sphere()
-    return manifold
-
-
-@ex.command
-def train(n_epochs, manifold_name, dimension, eval_every, gpu, submanifold_names, submanifold_shapes, _log):
-    data = load_dataset()
-    device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
-    initialize(get_adjacency_dict(data), _log)
-
-    if manifold_name == "Euclidean":
-        manifold = EuclideanManifold()
-    elif manifold_name == "Poincare":
+        manifold = Euclidean()
+    elif manifold_name == "PoincareBall":
         manifold = PoincareBall()
     elif manifold_name == "Sphere":
         manifold = Sphere()
     elif manifold_name == "Product":
-        submanifolds = [get_manifold_from_name(name) for name in submanifold_names]
-        manifold = ProductManifold(submanifolds, submanifold_shapes)
+        submanifolds = [get_embed_manifold(name) for name in submanifold_names]
+        manifold = Product(submanifolds, submanifold_shapes)
+    return manifold
+
+    
+@ex.command
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, _log):
+    data = load_dataset()
+    device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
+
+    log_queue = mp.Queue()
+    initialize_eval(get_adjacency_dict(data), log_queue)
+    
+    manifold = get_embed_manifold()
 
     model = ManifoldEmbedding(
         manifold,
@@ -83,39 +88,37 @@ def train(n_epochs, manifold_name, dimension, eval_every, gpu, submanifold_names
         dimension
     )
     model = model.to(device)
+    if double_precision:
+        model = model.double()
+    
+    apply_initialization(model.weight, manifold) 
+    model.weight.proj_()
 
     shared_params = {
         "manifold": manifold,
         "dimension": dimension,
-        "objects": data.objects
+        "objects": data.objects,
+        "double_precision": double_precision
     }
 
-    optimizer = RiemannianAdam(model.parameters())
+    optimizer = RiemannianSGD(model.parameters(), lr=learning_rate, manifold=manifold)
 
-    for epoch in range(n_epochs):
-        batch_losses = []
-        t_start = timeit.default_timer()
-        for inputs, targets in data:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
+    threads = []
+    if train_threads > 1:
+        model = model.share_memory()
+        for i in range(train_threads):
+            args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, i, log_queue, _log]
+            threads.append(mp.Process(target=train, args=args))
+            threads[-1].start()
+    else:
+        args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, 0, log_queue, _log]
+        train_process = mp.Process(target=train, args=args)
+        train_process.start()
+        threads = [train_process]
+    for thread in threads:
+        thread.join()
 
-            optimizer.zero_grad()
-            loss = model.loss(inputs, targets)
-            loss.backward()
-            optimizer.step()
-            batch_losses.append(loss.cpu().detach().numpy())
-            elapsed = timeit.default_timer() - t_start
-
-        if epoch % eval_every == (eval_every - 1):
-            mean_loss = float(np.mean(batch_losses))
-            save_data = {
-                'model': model.state_dict(),
-                'epoch': epoch
-            }
-            save_data.update(shared_params)
-            path = save(save_data)
-            evaluate(epoch, elapsed, mean_loss, path)
-
+    
 
 
 

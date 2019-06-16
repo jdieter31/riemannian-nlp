@@ -8,14 +8,14 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/mammal_closure.csv"
+    path = "data/noun_closure.csv"
     type = "edge"
     format = "hdf5"
     symmetrize = False
     burnin = False
-    num_workers = 4
+    num_workers = 3
     num_negs = 50
-    batch_size = 20
+    batch_size = 50
     sample_dampening = 0.75
 
 @data_ingredient.capture

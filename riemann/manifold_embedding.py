@@ -7,12 +7,17 @@ from torch.nn.functional import cross_entropy
 class ManifoldEmbedding(torch.nn.Embedding):
 
     def __init__(self, manifold: Manifold, num_embeddings, embedding_dim, padding_idx=None, max_norm=None,
-                 norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None ):
+                 norm_type=2.0, scale_grad_by_freq=False, sparse=False, _weight=None, double_precision=True):
         super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm,
                  norm_type=norm_type, scale_grad_by_freq=scale_grad_by_freq, sparse=sparse, _weight=_weight)
 
         self.manifold = manifold
-        self.weight = ManifoldParameter(data=self.weight, manifold=manifold)
+        if double_precision:
+            data = self.weight.double()
+        else:
+            data = self.weight
+
+        self.weight = ManifoldParameter(data=data, manifold=manifold)
         self.weight.proj_()
 
     def loss(self, inputs: torch.Tensor, targets: torch.Tensor):
@@ -32,3 +37,4 @@ class ManifoldEmbedding(torch.nn.Embedding):
         dists = self.manifold.dist(word, relations)
         # Minimize distance between words that are positive examples
         return cross_entropy(-dists, targets)
+
