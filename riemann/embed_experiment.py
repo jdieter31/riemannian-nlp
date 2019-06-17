@@ -47,14 +47,14 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 400
-    dimension = 5
+    dimension = 10
     manifold_name = "Product"
     eval_every = 10
     gpu = -1
     train_threads = 4
     submanifold_names = ["PoincareBall", "Sphere"]
     double_precision = True
-    submanifold_shapes = [[3], [2]]
+    submanifold_shapes = [[20], [10]]
     learning_rate = 0.3
 
 @ex.capture
@@ -119,8 +119,6 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
         thread.join()
 
     
-
-
-
-
+if __name__ == '__main__':
+    ex.run_commandline()
 
