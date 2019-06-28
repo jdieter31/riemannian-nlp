@@ -10,7 +10,7 @@ from manifold_embedding import ManifoldEmbedding
 
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
 from embed_save import save_ingredient, save
-from embed_eval import evaluate, initialize_eval
+import embed_eval
 from train import train
 from manifold_initialization import initialization_ingredient, apply_initialization
 
@@ -46,16 +46,17 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 400
-    dimension = 10
+    n_epochs = 800
+    dimension = 50
     manifold_name = "Product"
-    eval_every = 10
+    eval_every = 50
     gpu = -1
-    train_threads = 4
-    submanifold_names = ["PoincareBall", "Sphere"]
+    train_threads = 5
+    submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean", "Sphere"]
     double_precision = True
-    submanifold_shapes = [[20], [10]]
+    submanifold_shapes = [[20], [10], [10], [10]]
     learning_rate = 0.3
+    sparse = True
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
@@ -68,24 +69,26 @@ def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes
         manifold = Sphere()
     elif manifold_name == "Product":
         submanifolds = [get_embed_manifold(name) for name in submanifold_names]
-        manifold = Product(submanifolds, submanifold_shapes)
+        manifold = Product(submanifolds, np.array(submanifold_shapes))
+    
     return manifold
 
     
 @ex.command
-def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, _log):
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, sparse, _log):
     data = load_dataset()
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
 
     log_queue = mp.Queue()
-    initialize_eval(get_adjacency_dict(data), log_queue)
+    embed_eval.initialize_eval(get_adjacency_dict(data), log_queue)
     
     manifold = get_embed_manifold()
 
     model = ManifoldEmbedding(
         manifold,
         len(data.objects),
-        dimension
+        dimension,
+        sparse=sparse
     )
     model = model.to(device)
     if double_precision:
@@ -93,6 +96,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     
     apply_initialization(model.weight, manifold) 
     model.weight.proj_()
+
 
     shared_params = {
         "manifold": manifold,

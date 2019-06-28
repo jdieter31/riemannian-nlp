@@ -1,6 +1,6 @@
 import torch.multiprocessing as mp
 
-from embed_eval import evaluate
+import embed_eval
 from embed_save import save
 import timeit
 import numpy as np
@@ -20,7 +20,7 @@ def train(
         ):
     
 
-    for epoch in range(n_epochs):
+    for epoch in range(1, n_epochs + 1):
         batch_losses = []
         t_start = timeit.default_timer()
         data_iterator = tqdm(data) if thread_number == 0 else data
@@ -38,7 +38,7 @@ def train(
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 
-        if epoch % eval_every == (eval_every - 1) and thread_number == 0:
+        if (epoch == 1 or epoch % eval_every == 0) and thread_number == 0:
             mean_loss = float(np.mean(batch_losses))
             save_data = {
                 'model': model.state_dict(),
@@ -46,7 +46,7 @@ def train(
             }
             save_data.update(shared_params)
             path = save(save_data)
-            evaluate(epoch, elapsed, mean_loss, path)
+            embed_eval.evaluate(epoch, elapsed, mean_loss, path)
         if thread_number == 0: 
             # Output log if main thread
             while not log_queue.empty():

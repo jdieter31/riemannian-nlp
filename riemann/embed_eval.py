@@ -28,10 +28,10 @@ def async_eval(adj, log_queue):
 
         epoch, elapsed, loss, path = temp
         params = torch.load(path, map_location='cpu')
-        manifold = params["manifold"]
         objects = params["objects"]
         dimension = params["dimension"]
         double_precision = params["double_precision"]
+        manifold = params["manifold"]
 
         model = ManifoldEmbedding(
             manifold,
@@ -39,6 +39,8 @@ def async_eval(adj, log_queue):
             dimension
         )
         model.to(torch.device('cpu'))
+        if double_precision:
+            model.double()
         model.load_state_dict(params["model"])
         embeddings = model.weight.data
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist)

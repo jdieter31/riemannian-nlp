@@ -3,7 +3,6 @@ from geoopt import ManifoldParameter
 from geoopt.manifolds import Manifold
 from torch.nn.functional import cross_entropy
 
-
 class ManifoldEmbedding(torch.nn.Embedding):
 
     def __init__(self, manifold: Manifold, num_embeddings, embedding_dim, padding_idx=None, max_norm=None,
