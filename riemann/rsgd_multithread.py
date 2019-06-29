@@ -36,6 +36,7 @@ class RiemannianSGD(Optimizer):
                     if d_p.is_sparse:
                         d_p = d_p.coalesce()
                         indices = d_p._indices()[0]
+
                         manifold.egrad2rgrad(p[indices], d_p._values())
                         manifold._retr(p, d_p._values(), -lr, indices=indices)
                     else:

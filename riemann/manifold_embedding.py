@@ -2,6 +2,7 @@ import torch
 from geoopt import ManifoldParameter
 from geoopt.manifolds import Manifold
 from torch.nn.functional import cross_entropy
+import numpy as np
 
 class ManifoldEmbedding(torch.nn.Embedding):
 
@@ -18,6 +19,7 @@ class ManifoldEmbedding(torch.nn.Embedding):
 
         self.weight = ManifoldParameter(data=data, manifold=manifold)
         self.weight.proj_()
+
 
     def loss(self, inputs: torch.Tensor, targets: torch.Tensor):
         """

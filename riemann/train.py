@@ -28,7 +28,6 @@ def train(
         for inputs, targets in data_iterator:
             inputs = inputs.to(device)
             targets = targets.to(device)
-
             optimizer.zero_grad()
             loss = model.loss(inputs, targets)
             loss.backward()

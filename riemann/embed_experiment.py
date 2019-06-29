@@ -49,12 +49,12 @@ def config():
     n_epochs = 800
     dimension = 50
     manifold_name = "Product"
-    eval_every = 50
+    eval_every = 5
     gpu = -1
-    train_threads = 5
+    train_threads = 1
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean", "Sphere"]
     double_precision = True
-    submanifold_shapes = [[20], [10], [10], [10]]
+    submanifold_shapes = [[10], [10], [20], [10]]
     learning_rate = 0.3
     sparse = True
 
@@ -114,13 +114,12 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, i, log_queue, _log]
             threads.append(mp.Process(target=train, args=args))
             threads[-1].start()
+
+        for thread in threads:
+            thread.join()
     else:
         args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, 0, log_queue, _log]
-        train_process = mp.Process(target=train, args=args)
-        train_process.start()
-        threads = [train_process]
-    for thread in threads:
-        thread.join()
+        train(*args)
 
     
 if __name__ == '__main__':
