@@ -31,9 +31,7 @@ def train(
             optimizer.zero_grad()
             loss = model.loss(inputs, targets)
             loss.backward()
-
             optimizer.step()
-
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 

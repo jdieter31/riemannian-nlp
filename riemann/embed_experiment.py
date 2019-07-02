@@ -47,14 +47,14 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 800
-    dimension = 1000
-    manifold_name = "PoincareBall"
+    dimension = 50
+    manifold_name = "Product"
     eval_every = 5
     gpu = -1
-    train_threads = 2
-    submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean", "Sphere"]
+    train_threads = 20
+    submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
     double_precision = False
-    submanifold_shapes = [[10], [10], [20], [10]]
+    submanifold_shapes = [[15], [15], [20]]
     learning_rate = 0.3
     sparse = True
 
@@ -90,15 +90,19 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
         dimension,
         sparse=sparse
     )
+    if train_threads > 1:
+        mp.set_sharing_strategy('file_system')
+        model = model.share_memory()
+
     model = model.to(device)
     if double_precision:
         model = model.double()
     else:
         model = model.float()
     
-    apply_initialization(model.weight, manifold) 
-    model.weight.proj_()
-
+    apply_initialization(model.weight.data, manifold) 
+    with torch.no_grad():
+        manifold._projx(model.weight.data)
 
     shared_params = {
         "manifold": manifold,
@@ -111,17 +115,28 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
 
     threads = []
     if train_threads > 1:
-        model = model.share_memory()
-        for i in range(train_threads):
-            args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, i, log_queue, _log]
-            threads.append(mp.Process(target=train, args=args))
-            threads[-1].start()
+        try:
+            for i in range(train_threads):
+                args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, i, log_queue, _log]
+                threads.append(mp.Process(target=train, args=args))
+                threads[-1].start()
 
-        for thread in threads:
-            thread.join()
+            for thread in threads:
+                thread.join()
+        finally:
+            for thread in threads:
+                try:
+                    thread.close()
+                except:
+                    thread.terminate()
+            embed_eval.close_thread()
+
     else:
         args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, 0, log_queue, _log]
-        train(*args)
+        try:
+            train(*args)
+        finally:
+            embed_eval.close_thread()
 
     
 if __name__ == '__main__':

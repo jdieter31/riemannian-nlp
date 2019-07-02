@@ -11,6 +11,7 @@ eval_ingredient = Ingredient('evaluation')
 
 eval_queue = None
 log_queue = None
+process = None
 
 
 def async_eval(adj, log_queue):
@@ -59,6 +60,7 @@ def initialize_eval(adjacent_list, log_queue_):
     log_queue = log_queue_
     global eval_queue
     eval_queue = mp.Queue()
+    global process
     process = mp.Process(target=async_eval, args=(adjacent_list, log_queue_))
     process.start()
 
@@ -66,4 +68,12 @@ def initialize_eval(adjacent_list, log_queue_):
 def evaluate(epoch, elapsed, loss, path):
     global eval_queue
     eval_queue.put((epoch, elapsed, loss, path))
+
+def close_thread():
+    global process
+    if process:
+        try:
+            process.close()
+        except:
+            process.terminate()
 

@@ -13,9 +13,6 @@ class ManifoldEmbedding(torch.nn.Embedding):
 
         self.manifold = manifold
 
-        self.weight = ManifoldParameter(data=self.weight, manifold=manifold)
-        self.weight.proj_()
-
 
     def loss(self, inputs: torch.Tensor, targets: torch.Tensor):
         """

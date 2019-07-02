@@ -13,7 +13,7 @@ def config():
     format = "hdf5"
     symmetrize = False
     burnin = False
-    num_workers = 2
+    num_workers = 1
     num_negs = 50
     batch_size = 50
     sample_dampening = 0.75
