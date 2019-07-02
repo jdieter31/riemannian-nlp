@@ -47,13 +47,13 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 800
-    dimension = 50
-    manifold_name = "Product"
+    dimension = 1000
+    manifold_name = "PoincareBall"
     eval_every = 5
     gpu = -1
-    train_threads = 1
+    train_threads = 2
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean", "Sphere"]
-    double_precision = True
+    double_precision = False
     submanifold_shapes = [[10], [10], [20], [10]]
     learning_rate = 0.3
     sparse = True
@@ -93,6 +93,8 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     model = model.to(device)
     if double_precision:
         model = model.double()
+    else:
+        model = model.float()
     
     apply_initialization(model.weight, manifold) 
     model.weight.proj_()
