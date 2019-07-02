@@ -13,6 +13,9 @@ def train(
         optimizer,
         n_epochs,
         eval_every,
+        lr,
+        burnin_num,
+        burnin_lr_mult,
         shared_params,
         thread_number,
         log_queue,
@@ -21,21 +24,28 @@ def train(
     
 
     for epoch in range(1, n_epochs + 1):
+        data.burnin = False
+        learning_rate = lr
+        if epoch <= burnin_num:
+            data.burnin = True
+            learning_rate *= burnin_lr_mult
+
         batch_losses = []
         t_start = timeit.default_timer()
         data_iterator = tqdm(data) if thread_number == 0 else data
         
         for inputs, targets in data_iterator:
+
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
             loss = model.loss(inputs, targets)
             loss.backward()
-            optimizer.step()
+            optimizer.step(lr=learning_rate)
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 
-        if (epoch == 1 or epoch % eval_every == 0) and thread_number == 0:
+        if (epoch == 1 or epoch % eval_every == 0 or epoch == n_epochs) and thread_number == 0:
             mean_loss = float(np.mean(batch_losses))
             save_data = {
                 'model': model.state_dict(),

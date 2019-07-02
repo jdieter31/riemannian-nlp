@@ -47,16 +47,19 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 800
-    dimension = 50
-    manifold_name = "Product"
+    dimension = 20
+    manifold_name = "PoincareBall"
     eval_every = 5
     gpu = -1
-    train_threads = 20
+    train_threads = 5
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
-    double_precision = False
+    double_precision = True
     submanifold_shapes = [[15], [15], [20]]
-    learning_rate = 0.3
+    learning_rate = 1
     sparse = True
+    burnin_num = 20
+    burnin_lr_mult = 0.01
+    burnin_neg_multiplier = 0.1
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
@@ -69,14 +72,15 @@ def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes
         manifold = Sphere()
     elif manifold_name == "Product":
         submanifolds = [get_embed_manifold(name) for name in submanifold_names]
-        manifold = Product(submanifolds, np.array(submanifold_shapes))
-    
+        manifold = Product(submanifolds, np.array(submanifold_shapes))   
     return manifold
-
-    
+ 
 @ex.command
-def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, sparse, _log):
-    data = load_dataset()
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, _log):
+    data = load_dataset(burnin=burnin_num > 0)
+    if burnin_num > 0:
+        data.neg_multiplier = burnin_neg_multiplier
+
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
 
     log_queue = mp.Queue()
@@ -100,7 +104,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     else:
         model = model.float()
     
-    apply_initialization(model.weight.data, manifold) 
+    apply_initialization(model.weight.data, manifold)
     with torch.no_grad():
         manifold._projx(model.weight.data)
 
@@ -117,7 +121,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, i, log_queue, _log]
+                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, log_queue, _log]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -132,7 +136,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             embed_eval.close_thread()
 
     else:
-        args = [device, model, data, optimizer, n_epochs, eval_every, shared_params, 0, log_queue, _log]
+        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, log_queue, _log]
         try:
             train(*args)
         finally:
