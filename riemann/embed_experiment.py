@@ -10,6 +10,7 @@ from manifold_embedding import ManifoldEmbedding
 
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
 from embed_save import save_ingredient, save
+from embed_eval import eval_ingredient
 import embed_eval
 from train import train
 from manifold_initialization import initialization_ingredient, apply_initialization
@@ -22,7 +23,7 @@ import numpy as np
 
 import torch.multiprocessing as mp
 
-ex = Experiment('Embed', ingredients=[data_ingredient, save_ingredient, initialization_ingredient])
+ex = Experiment('Embed', ingredients=[eval_ingredient, data_ingredient, save_ingredient, initialization_ingredient])
 
 ex.observers.append(FileStorageObserver.create("experiments"))
 
@@ -46,18 +47,18 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 800
-    dimension = 20
+    n_epochs = 200
+    dimension = 30
     manifold_name = "PoincareBall"
-    eval_every = 5
+    eval_every = 20
     gpu = -1
-    train_threads = 5
+    train_threads = 65
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
     double_precision = True
     submanifold_shapes = [[15], [15], [20]]
     learning_rate = 1
     sparse = True
-    burnin_num = 20
+    burnin_num = 10
     burnin_lr_mult = 0.01
     burnin_neg_multiplier = 0.1
 
@@ -82,9 +83,10 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
         data.neg_multiplier = burnin_neg_multiplier
 
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
+    torch.set_num_threads(1)
 
     log_queue = mp.Queue()
-    embed_eval.initialize_eval(get_adjacency_dict(data), log_queue)
+    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue)
     
     manifold = get_embed_manifold()
 
@@ -133,15 +135,19 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
                     thread.close()
                 except:
                     thread.terminate()
-            embed_eval.close_thread()
+            embed_eval.close_thread(wait_to_finish=True)
 
     else:
         args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, log_queue, _log]
         try:
             train(*args)
         finally:
-            embed_eval.close_thread()
+            embed_eval.close_thread(wait_to_finish=True)
 
+    
+    while not log_queue.empty():
+        msg = log_queue.get()
+        _log.info(msg)
     
 if __name__ == '__main__':
     ex.run_commandline()
