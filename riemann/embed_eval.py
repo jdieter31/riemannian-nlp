@@ -12,7 +12,7 @@ eval_ingredient = Ingredient('evaluation')
 eval_queue = None
 log_queue = None
 process = None
-
+tensorboard_queue = None
 
 def async_eval(adj, log_queue, num_workers):
     global eval_queue
@@ -50,6 +50,9 @@ def async_eval(adj, log_queue, num_workers):
         model.load_state_dict(params["model"])
         embeddings = model.weight.data
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
+
+        tensorboard_queue.put(('scalar', 'mean_rank', meanrank, epoch))
+        tensorboard_queue.put(('scalar', 'map_rank', maprank, epoch))
         lmsg = {
             'epoch': epoch,
             'elapsed': elapsed,
@@ -61,14 +64,16 @@ def async_eval(adj, log_queue, num_workers):
 
 @eval_ingredient.config
 def config():
-    eval_workers = 6
+    eval_workers = 2
 
 @eval_ingredient.capture
-def initialize_eval(eval_workers, adjacent_list, log_queue_):
+def initialize_eval(eval_workers, adjacent_list, log_queue_, tboard_queue):
     global log_queue
     log_queue = log_queue_
     global eval_queue
     eval_queue = mp.Queue()
+    global tensorboard_queue
+    tensorboard_queue = tboard_queue
     global process
     process = mp.Process(target=async_eval, args=(adjacent_list, log_queue_, eval_workers))
     process.start()

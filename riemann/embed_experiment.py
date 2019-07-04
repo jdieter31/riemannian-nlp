@@ -52,7 +52,7 @@ def config():
     manifold_name = "PoincareBall"
     eval_every = 20
     gpu = -1
-    train_threads = 65
+    train_threads = 5
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
     double_precision = True
     submanifold_shapes = [[15], [15], [20]]
@@ -86,7 +86,8 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     torch.set_num_threads(1)
 
     log_queue = mp.Queue()
-    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue)
+    tensorboard_queue = mp.Queue()
+    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue, tboard_queue=tensorboard_queue)
     
     manifold = get_embed_manifold()
 
@@ -123,7 +124,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, log_queue, _log]
+                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_queue, log_queue, _log]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -138,7 +139,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             embed_eval.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, log_queue, _log]
+        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_queue, log_queue, _log]
         try:
             train(*args)
         finally:
@@ -148,6 +149,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     while not log_queue.empty():
         msg = log_queue.get()
         _log.info(msg)
+
     
 if __name__ == '__main__':
     ex.run_commandline()
