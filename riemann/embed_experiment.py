@@ -22,6 +22,7 @@ from torch.distributions import uniform
 import numpy as np
 
 import torch.multiprocessing as mp
+from datetime import datetime
 
 ex = Experiment('Embed', ingredients=[eval_ingredient, data_ingredient, save_ingredient, initialization_ingredient])
 
@@ -48,8 +49,8 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 200
-    dimension = 30
-    manifold_name = "PoincareBall"
+    dimension = 50
+    manifold_name = "Product"
     eval_every = 20
     gpu = -1
     train_threads = 5
@@ -61,6 +62,11 @@ def config():
     burnin_num = 10
     burnin_lr_mult = 0.01
     burnin_neg_multiplier = 0.1
+    now = datetime.now()
+    tensorboard_dir = f"runs/{manifold_name}-{dimension}D-LR{learning_rate}"
+    if manifold_name == "Product":
+        tensorboard_dir += f"-Subs[{','.join([sub_name for sub_name in submanifold_names])}]"
+    tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
@@ -77,7 +83,7 @@ def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes
     return manifold
  
 @ex.command
-def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, _log):
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, _log):
     data = load_dataset(burnin=burnin_num > 0)
     if burnin_num > 0:
         data.neg_multiplier = burnin_neg_multiplier
@@ -86,8 +92,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     torch.set_num_threads(1)
 
     log_queue = mp.Queue()
-    tensorboard_queue = mp.Queue()
-    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue, tboard_queue=tensorboard_queue)
+    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue, tboard_dir=tensorboard_dir)
     
     manifold = get_embed_manifold()
 
@@ -124,7 +129,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_queue, log_queue, _log]
+                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_dir, log_queue, _log]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -139,7 +144,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             embed_eval.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_queue, log_queue, _log]
+        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_dir, log_queue, _log]
         try:
             train(*args)
         finally:

@@ -19,13 +19,13 @@ def train(
         burnin_lr_mult,
         shared_params,
         thread_number,
-        tensorboard_queue,
+        tensorboard_dir,
         log_queue,
         log
         ):
 
     if thread_number == 0:
-        tensorboard_writer = SummaryWriter()
+        tensorboard_writer = SummaryWriter(tensorboard_dir)
 
     for epoch in range(1, n_epochs + 1):
         data.burnin = False
@@ -60,16 +60,12 @@ def train(
         if thread_number == 0: 
             mean_loss_tb = float(np.mean(batch_losses))
             tensorboard_writer.add_scalar('batch_loss', mean_loss_tb, epoch)
+            tensorboard_writer._get_file_writer().flush()
 
             # Output log if main thread
             while not log_queue.empty():
                 msg = log_queue.get()
                 log.info(msg)
-            
-            while not tensorboard_queue.empty():
-                tboard_data = tensorboard_queue.get()
-                tboard_type = tboard_data[0]
-                tboard_params = list(tboard_data[1:])
-                if tboard_type == "scalar":
-                    tensorboard_writer.add_scalar(*tboard_params)
 
+    if thread_number == 0:
+        tensorboard_writer.close() 
