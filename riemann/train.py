@@ -21,7 +21,9 @@ def train(
         thread_number,
         tensorboard_dir,
         log_queue,
-        log
+        log,
+        plateau_lr_scheduler = None,
+        lr_scheduler = None
         ):
 
     if thread_number == 0:
@@ -29,10 +31,10 @@ def train(
 
     for epoch in range(1, n_epochs + 1):
         data.burnin = False
-        learning_rate = lr
-        if epoch <= burnin_num:
+        learning_rate = None
+        if epoch <= burnin_num: 
             data.burnin = True
-            learning_rate *= burnin_lr_mult
+            learning_rate = lr * burnin_lr_mult
 
         batch_losses = []
         t_start = timeit.default_timer()
@@ -58,8 +60,15 @@ def train(
             path = save(save_data)
             embed_eval.evaluate(epoch, elapsed, mean_loss, path)
         if thread_number == 0: 
-            mean_loss_tb = float(np.mean(batch_losses))
-            tensorboard_writer.add_scalar('batch_loss', mean_loss_tb, epoch)
+            mean_loss = float(np.mean(batch_losses))
+            
+            if plateau_lr_scheduler is not None and epoch > burnin_num:
+                plateau_lr_scheduler.step(mean_loss)
+            elif lr_scheduler is not None:
+                lr_scheduler.step()
+            
+            
+            tensorboard_writer.add_scalar('batch_loss', mean_loss, epoch)
             tensorboard_writer._get_file_writer().flush()
 
             # Output log if main thread

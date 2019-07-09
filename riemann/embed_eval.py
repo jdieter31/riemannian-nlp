@@ -71,7 +71,7 @@ def async_eval(adj, log_queue, num_workers):
 
 @eval_ingredient.config
 def config():
-    eval_workers = 2
+    eval_workers = 5
 
 @eval_ingredient.capture
 def initialize_eval(eval_workers, adjacent_list, log_queue_, tboard_dir):

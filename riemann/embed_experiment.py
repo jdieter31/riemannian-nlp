@@ -18,6 +18,7 @@ from manifold_initialization import initialization_ingredient, apply_initializat
 from rsgd_multithread import RiemannianSGD
 
 from torch.distributions import uniform
+from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 
 import numpy as np
 
@@ -49,9 +50,9 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 200
-    dimension = 50
-    manifold_name = "Product"
-    eval_every = 20
+    dimension = 20
+    manifold_name = "PoincareBall"
+    eval_every = 2
     gpu = -1
     train_threads = 5
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
@@ -67,6 +68,15 @@ def config():
     if manifold_name == "Product":
         tensorboard_dir += f"-Subs[{','.join([sub_name for sub_name in submanifold_names])}]"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
+    use_plateau_lr_scheduler = False
+    plateau_lr_scheduler_factor = 0.1
+    plateau_lr_scheduler_patience = 2
+    plateau_lr_scheduler_verbose = True
+    plateau_lr_scheduler_threshold = 0.4
+    plateau_lr_scheduler_min_lr = 0.1
+    use_lr_scheduler = True
+    scheduled_lrs = [1, 10, 1, 0.1]
+    scheduled_lr_epochs = [10, 20, 10]
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
@@ -83,7 +93,7 @@ def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes
     return manifold
  
 @ex.command
-def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, _log):
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, use_plateau_lr_scheduler, plateau_lr_scheduler_factor, plateau_lr_scheduler_patience, plateau_lr_scheduler_verbose, plateau_lr_scheduler_threshold, plateau_lr_scheduler_min_lr, use_lr_scheduler, scheduled_lrs, scheduled_lr_epochs, _log):
     data = load_dataset(burnin=burnin_num > 0)
     if burnin_num > 0:
         data.neg_multiplier = burnin_neg_multiplier
@@ -124,12 +134,40 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
     }
 
     optimizer = RiemannianSGD(model.parameters(), lr=learning_rate, manifold=manifold)
+    plateau_lr_scheduler = None
+    lr_scheduler = None
+    if use_plateau_lr_scheduler:
+        plateau_lr_scheduler = ReduceLROnPlateau(
+            optimizer,
+            factor=plateau_lr_scheduler_factor,
+            patience=plateau_lr_scheduler_patience,
+            verbose=plateau_lr_scheduler_verbose,
+            threshold=plateau_lr_scheduler_threshold,
+            min_lr=plateau_lr_scheduler_min_lr
+        )
+    elif use_lr_scheduler:
+        global lrs 
+        lrs = scheduled_lrs
+        global epoch_sched
+        epoch_sched = scheduled_lr_epochs
+        def return_lr(epochs):
+            i = 0
+            sum_epochs = 0
+            for i in range(len(epoch_sched)):
+                sum_epochs += epoch_sched[i]
+                if epochs <= sum_epochs:
+                    break
+            if epochs > sum_epochs:
+                i += 1
+
+            return lrs[i]
+        lr_scheduler = LambdaLR(optimizer, return_lr)
 
     threads = []
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_dir, log_queue, _log]
+                args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_dir, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -144,7 +182,7 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             embed_eval.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_dir, log_queue, _log]
+        args = [device, model, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_dir, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
         try:
             train(*args)
         finally:
