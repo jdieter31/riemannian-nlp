@@ -52,7 +52,7 @@ def config():
     n_epochs = 200
     dimension = 20
     manifold_name = "PoincareBall"
-    eval_every = 2
+    eval_every = 5
     gpu = -1
     train_threads = 5
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
@@ -75,8 +75,8 @@ def config():
     plateau_lr_scheduler_threshold = 0.4
     plateau_lr_scheduler_min_lr = 0.1
     use_lr_scheduler = True
-    scheduled_lrs = [1, 10, 1, 0.1]
-    scheduled_lr_epochs = [10, 20, 10]
+    scheduled_lrs = [1] + list(np.geomspace(0.01, 10, num=10)) 
+    scheduled_lr_epochs = [10] + [1 for _ in range(9)]
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
@@ -155,9 +155,9 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             sum_epochs = 0
             for i in range(len(epoch_sched)):
                 sum_epochs += epoch_sched[i]
-                if epochs <= sum_epochs:
+                if epochs < sum_epochs:
                     break
-            if epochs > sum_epochs:
+            if epochs >= sum_epochs:
                 i += 1
 
             return lrs[i]

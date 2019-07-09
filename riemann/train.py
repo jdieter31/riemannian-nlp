@@ -59,15 +59,15 @@ def train(
             save_data.update(shared_params)
             path = save(save_data)
             embed_eval.evaluate(epoch, elapsed, mean_loss, path)
+
+        mean_loss = float(np.mean(batch_losses))
+        
+        if plateau_lr_scheduler is not None and epoch > burnin_num:
+            plateau_lr_scheduler.step(mean_loss)
+        elif lr_scheduler is not None:
+            lr_scheduler.step()
+
         if thread_number == 0: 
-            mean_loss = float(np.mean(batch_losses))
-            
-            if plateau_lr_scheduler is not None and epoch > burnin_num:
-                plateau_lr_scheduler.step(mean_loss)
-            elif lr_scheduler is not None:
-                lr_scheduler.step()
-            
-            
             tensorboard_writer.add_scalar('batch_loss', mean_loss, epoch)
             tensorboard_writer._get_file_writer().flush()
 
