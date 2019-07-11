@@ -49,12 +49,13 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 200
+    n_epochs = 100
     dimension = 20
     manifold_name = "PoincareBall"
-    eval_every = 5
+    eval_every = 10
+>>>>>>> Stashed changes
     gpu = -1
-    train_threads = 5
+    train_threads = 65
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
     double_precision = True
     submanifold_shapes = [[15], [15], [20]]
@@ -64,10 +65,9 @@ def config():
     burnin_lr_mult = 0.01
     burnin_neg_multiplier = 0.1
     now = datetime.now()
-    tensorboard_dir = f"runs/{manifold_name}-{dimension}D-LR{learning_rate}"
+    tensorboard_dir = f"runs/{manifold_name}-{dimension}D"
     if manifold_name == "Product":
         tensorboard_dir += f"-Subs[{','.join([sub_name for sub_name in submanifold_names])}]"
-    tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
     use_plateau_lr_scheduler = False
     plateau_lr_scheduler_factor = 0.1
     plateau_lr_scheduler_patience = 2
@@ -77,6 +77,11 @@ def config():
     use_lr_scheduler = True
     scheduled_lrs = [1] + list(np.geomspace(0.01, 10, num=10)) 
     scheduled_lr_epochs = [10] + [1 for _ in range(9)]
+    if use_lr_scheduler:
+        tensorboard_dir += f"-LRSched{scheduled_lrs}Epochs{scheduled_lr_epochs}"
+    else:
+        tensorboard_dir += f"-LR{learning_rate}"
+    tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
 
 @ex.capture
 def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes=None):
