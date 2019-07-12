@@ -9,7 +9,7 @@ from sacred.observers import FileStorageObserver
 from manifold_embedding import ManifoldEmbedding
 
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
-from embed_save import save_ingredient, save
+from embed_save import save_ingredient, save, load
 from embed_eval import eval_ingredient
 import embed_eval
 from train import train
@@ -53,7 +53,6 @@ def config():
     dimension = 20
     manifold_name = "PoincareBall"
     eval_every = 10
->>>>>>> Stashed changes
     gpu = -1
     train_threads = 65
     submanifold_names = ["PoincareBall", "PoincareBall", "Euclidean"]
@@ -97,6 +96,33 @@ def get_embed_manifold(manifold_name, submanifold_names=None, submanifold_shapes
         manifold = Product(submanifolds, np.array(submanifold_shapes))   
     return manifold
  
+@ex.command
+def cli_search():
+    print("Loading model...")
+    model, objects = load() 
+    embeddings = model.weight.data
+    while True:
+        print("Input a word to search near neighbors (or type 'quit')")
+        search_q = input("--> ")
+        if search_q == "quit":
+            return
+        if not search_q in objects:
+            print("Search query not found in embeddings!")
+            continue
+        k = -1
+        while k<0:
+            print("How many neighbors to list?")
+            try:
+                k = int(input("--> "))
+            except:
+                print("Must be valid integer")
+        q_index = objects.index(search_q)
+        dists = model.manifold.dist(embeddings[None, q_index], embeddings)
+        sorted_dists, sorted_indices = dists.sort()
+        sorted_objects = [objects[index] for index in sorted_indices]
+        for i in range(k):
+            print(f"{sorted_objects[i]} - dist: {sorted_dists[i]}")
+
 @ex.command
 def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, use_plateau_lr_scheduler, plateau_lr_scheduler_factor, plateau_lr_scheduler_patience, plateau_lr_scheduler_verbose, plateau_lr_scheduler_threshold, plateau_lr_scheduler_min_lr, use_lr_scheduler, scheduled_lrs, scheduled_lr_epochs, _log):
     data = load_dataset(burnin=burnin_num > 0)

@@ -1,4 +1,5 @@
 from sacred import Ingredient
+from manifold_embedding import ManifoldEmbedding
 import random
 import time
 import torch
@@ -34,3 +35,23 @@ def save(params, tries, path, _log):
             save(params, tries=(tries - 1))
         else:
             _log.warning("Giving up on saving...")
+
+@save_ingredient.capture
+def load(path, _log):
+    params = torch.load(path, map_location='cpu')
+    objects = params["objects"]
+    objects = params["objects"]
+    dimension = params["dimension"]
+    double_precision = params["double_precision"]
+    manifold = params["manifold"]
+
+    model = ManifoldEmbedding(
+        manifold,
+        len(objects),
+        dimension
+    )
+    model.to(torch.device('cpu'))
+    if double_precision:
+        model.double()
+    model.load_state_dict(params["model"])
+    return model, objects
