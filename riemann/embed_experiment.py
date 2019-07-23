@@ -74,10 +74,26 @@ def config():
     plateau_lr_scheduler_threshold = 0.4
     plateau_lr_scheduler_min_lr = 0.1
     use_lr_scheduler = True
-    scheduled_lrs = [1] + list(np.geomspace(0.01, 10, num=10)) 
-    scheduled_lr_epochs = [10] + [1 for _ in range(9)]
+    scheduled_lrs = [1] + list(np.geomspace(0.01, 10, num=40)) 
+    scheduled_lr_epochs = [10] + [1 for _ in range(39)]
+    use_lr_func = True
+    lr_func_name = "linear-values-[0.01, 10, 1]-epochs-[10, 30, 100]"
+    def linear_func(epoch):
+        if epoch < 10:
+            return 1
+        elif epoch < 30:
+            return 0.01 * (30 - (epoch + 1))/20 + 10 * ((epoch + 1) - 10)/20
+        elif epoch < 100:
+            return 10 * (100 - (epoch + 1))/70 + 1 * ((epoch + 1) - 30)/70
+        else:
+            return 1
+    lr_func = linear_func
+    
     if use_lr_scheduler:
-        tensorboard_dir += f"-LRSched{scheduled_lrs}Epochs{scheduled_lr_epochs}"
+        if use_lr_func:
+            tensorboard_dir += f"-LRFunc{lr_func_name}"
+        else:
+            tensorboard_dir += f"-LRSched{len(scheduled_lrs)}"
     else:
         tensorboard_dir += f"-LR{learning_rate}"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
@@ -124,7 +140,7 @@ def cli_search():
             print(f"{sorted_objects[i]} - dist: {sorted_dists[i]}")
 
 @ex.command
-def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, use_plateau_lr_scheduler, plateau_lr_scheduler_factor, plateau_lr_scheduler_patience, plateau_lr_scheduler_verbose, plateau_lr_scheduler_threshold, plateau_lr_scheduler_min_lr, use_lr_scheduler, scheduled_lrs, scheduled_lr_epochs, _log):
+def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision, learning_rate, burnin_num, burnin_lr_mult, burnin_neg_multiplier, sparse, tensorboard_dir, use_plateau_lr_scheduler, plateau_lr_scheduler_factor, plateau_lr_scheduler_patience, plateau_lr_scheduler_verbose, plateau_lr_scheduler_threshold, plateau_lr_scheduler_min_lr, use_lr_scheduler, scheduled_lrs, scheduled_lr_epochs, lr_func, use_lr_func, _log):
     data = load_dataset(burnin=burnin_num > 0)
     if burnin_num > 0:
         data.neg_multiplier = burnin_neg_multiplier
@@ -177,22 +193,24 @@ def embed(n_epochs, dimension, eval_every, gpu, train_threads, double_precision,
             min_lr=plateau_lr_scheduler_min_lr
         )
     elif use_lr_scheduler:
-        global lrs 
-        lrs = scheduled_lrs
-        global epoch_sched
-        epoch_sched = scheduled_lr_epochs
-        def return_lr(epochs):
-            i = 0
-            sum_epochs = 0
-            for i in range(len(epoch_sched)):
-                sum_epochs += epoch_sched[i]
-                if epochs < sum_epochs:
-                    break
-            if epochs >= sum_epochs:
-                i += 1
+        if not use_lr_func:
+            global lrs 
+            lrs = scheduled_lrs
+            global epoch_sched
+            epoch_sched = scheduled_lr_epochs
+            def return_lr(epochs):
+                i = 0
+                sum_epochs = 0
+                for i in range(len(epoch_sched)):
+                    sum_epochs += epoch_sched[i]
+                    if epochs < sum_epochs:
+                        break
+                if epochs >= sum_epochs:
+                    i += 1
 
-            return lrs[i]
-        lr_scheduler = LambdaLR(optimizer, return_lr)
+                return lrs[i]
+            lr_func = return_lr
+        lr_scheduler = LambdaLR(optimizer, lr_func)
 
     threads = []
     if train_threads > 1:

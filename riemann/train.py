@@ -62,19 +62,22 @@ def train(
 
         mean_loss = float(np.mean(batch_losses))
         
-        if plateau_lr_scheduler is not None and epoch > burnin_num:
-            plateau_lr_scheduler.step(mean_loss)
-        elif lr_scheduler is not None:
-            lr_scheduler.step()
-
         if thread_number == 0: 
             tensorboard_writer.add_scalar('batch_loss', mean_loss, epoch)
+            if lr_scheduler is not None:
+                tensorboard_writer.add_scalar('learning_rate', lr_scheduler.get_lr()[0], epoch)
             tensorboard_writer._get_file_writer().flush()
 
             # Output log if main thread
             while not log_queue.empty():
                 msg = log_queue.get()
                 log.info(msg)
+
+        if plateau_lr_scheduler is not None and epoch > burnin_num:
+            plateau_lr_scheduler.step(mean_loss)
+        elif lr_scheduler is not None:
+            lr_scheduler.step()
+
 
     if thread_number == 0:
         tensorboard_writer.close() 
