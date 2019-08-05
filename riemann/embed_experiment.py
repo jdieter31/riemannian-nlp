@@ -7,8 +7,6 @@ from manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold, 
 from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
-from manifold_embedding import ManifoldEmbedding
-
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
 from embed_save import save_ingredient
 from embed_eval import eval_ingredient
@@ -52,7 +50,7 @@ ex.logger = logger
 def config():
     n_epochs = 100
     eval_every = 10
-    gpu = -1
+    gpu = 0
     train_threads = 1
     embed_manifold_name = "PoincareBall"
     embed_manifold_dim = 5

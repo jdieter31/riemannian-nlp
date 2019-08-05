@@ -1,5 +1,4 @@
 from sacred import Ingredient
-from manifold_embedding import ManifoldEmbedding
 import random
 import time
 import torch

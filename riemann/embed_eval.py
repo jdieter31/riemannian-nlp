@@ -5,7 +5,6 @@ import json
 import torch
 
 from data.graph import eval_reconstruction
-from manifold_embedding import ManifoldEmbedding
 
 from embed_save import load_model
 
