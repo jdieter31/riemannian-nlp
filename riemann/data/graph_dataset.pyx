@@ -33,6 +33,7 @@ cdef class BatchedDataset:
     cdef public bool burnin
     cdef public double neg_multiplier
     cdef public npc.ndarray counts
+    cdef public list features
 
     cdef long [:, :] idx
     cdef int nnegs, max_tries, N, batch_size, current, num_workers
@@ -44,7 +45,7 @@ cdef class BatchedDataset:
     cdef list threads
 
     def __cinit__(self, idx, objects, weights, nnegs, batch_size, num_workers,
-                  burnin=False, sample_dampening=0.75):
+                  burnin=False, sample_dampening=0.75, features=None):
         '''
         Create a dataset for training Hyperbolic embeddings.  Rather than
         allocating many tensors for individual dataset items, we instead
@@ -61,6 +62,7 @@ cdef class BatchedDataset:
             batch_size (int): Size of each minibatch
             num_workers (int): Number of threads to use to produce each batch
             burnin (bool): ???
+            features (list[any]): Features for each vertex in the graph
         '''
         self.idx = idx
         self.objects = objects
@@ -75,6 +77,7 @@ cdef class BatchedDataset:
         self.max_tries = 10 * nnegs
         self.neg_multiplier = 1
         self.queue = queue.Queue(maxsize=num_workers)
+        self.features = features
 
     # Setup the weights datastructure and sampling tables
     def _mk_weights(self, npc.ndarray[npc.long_t, ndim=2] idx, npc.ndarray[npc.double_t, ndim=1] weights):

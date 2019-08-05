@@ -1,39 +1,49 @@
-from sacred import Ingredient
-
+import torch
 import torch.nn.init as init
 
-initialization_ingredient = Ingredient("initialization")
+"""
+Utility functions for applying specificic initalizations to parameters on a manifold - automatically does the correct initializations for product manifolds. In both functions the param initializations is a dictionary describing the initializations formatted like so:
 
-
-
-@initialization_ingredient.config
-def config():
-    global_init = "normal_"
-    global_params = []
-
-    manifold_init = {
-        "PoincareBall": "uniform_",
+    {
+        'PoincareBall': {
+            'init_func': 'uniform_',
+            'params': [-0.001, 0.001]
+        },
+        'global': {
+            'init_func': 'normal_'
+        }
     }
+init_func can be any funciton from torch.nn.init and params are the respective params for the init_func. When no params are specified, only the tensor is passed to the init_func.
+"""
 
-    manifold_params = {
-        "PoincareBall": [-0.001, 0.001]
-    }
-
-def apply_initialization_(tensor, manifold_name, global_init, global_params, manifold_init, manifold_params):
-    if manifold_name in manifold_init.keys():
-        init_func = getattr(init, manifold_init[manifold_name])
-        args = [tensor] + manifold_params[manifold_name]
-        init_func(*args)
+def get_initialized_manifold_tensor(device, dtype, shape, manifold, initializations, requires_grad, project=True):
+    tensor = torch.empty(shape, dtype=dtype, device=device, requires_grad=requires_grad)
+    initialize_manifold_tensor(tensor, manifold, initializations, project)
+    return tensor
+    
+def initialize_manifold_tensor(tensor, manifold, initializations, project=True):
+    manifold_name = manifold.__class__.__name__
+    if manifold_name == "ProductManifold":
+        for i in range(len(manifold.submanifolds)):
+            sub_data = manifold.get_submanifold_value_index(tensor, i)
+            initialize_manifold_tensor(sub_data, manifold.submanifolds[i], initializations)
     else:
-        init_func = getattr(init, global_init)
-        args = [tensor] + global_params
+        initialization = None
+        if manifold_name in initializations:
+            initialization = initializations[manifold_name]
+        elif "global" in initializations:
+            initialization = initializations["global"]
+        if initialization is None:
+            return
+        init_func = getattr(init, initialization["init_func"])
+        init_func_params = []
+        if "params" in initialization:
+            init_func_params = initialization["params"]
+        args = [tensor] + init_func_params
         init_func(*args)
+        if False:
+            manifold.proj_(tensor)
 
-@initialization_ingredient.capture
-def apply_initialization(tensor, manifold, global_init, global_params, manifold_init, manifold_params):
-    if manifold.name == "Product":
-        for submanifold in manifold.submanifolds:
-            sub_data = manifold._get_submanifold_value(tensor, submanifold)
-            apply_initialization(sub_data, submanifold, global_init, global_params, manifold_init, manifold_params)
-    else:
-        apply_initialization_(tensor, manifold.name, global_init, global_params, manifold_init, manifold_params)
+            
+
+

@@ -1,0 +1,13 @@
+import torch.nn as nn
+import torch
+from manifolds import EuclideanManifold
+
+class ManifoldParameter(nn.Parameter):
+    """PyTorch tensor with information about the manifold it is contained on."""
+
+    def __new__(cls, data=None, requires_grad=True, manifold=EuclideanManifold()):
+        if data is None:
+            data = torch.Tensor()
+        instance = torch.Tensor._make_subclass(cls, data, requires_grad)
+        instance.manifold = manifold
+        return instance

@@ -3,18 +3,18 @@
 
 from torch.optim.optimizer import Optimizer, required
 import torch
+from manifold_tensors import ManifoldParameter
+from manifolds import EuclideanManifold
 
 class RiemannianSGD(Optimizer):
 
     def __init__(
             self,
             params,
-            lr,
-            manifold
+            lr
     ):
         defaults = {
             'lr': lr,
-            'manifold': manifold
         }
         super(RiemannianSGD, self).__init__(params, defaults)
 
@@ -28,8 +28,13 @@ class RiemannianSGD(Optimizer):
         with torch.no_grad():
             for group in self.param_groups:
                 for p in group['params']:
+                    if p.grad is None:
+                        continue
                     lr = lr or group['lr']
-                    manifold = group['manifold']
+                    if isinstance(p, ManifoldParameter):
+                        manifold = p.manifold
+                    else:
+                        manifold = EuclideanManifold()
 
                     d_p = p.grad.data
                     # Must only have sparse rows otherwise this will get messed up
@@ -37,12 +42,12 @@ class RiemannianSGD(Optimizer):
                         d_p = d_p.coalesce()
                         indices = d_p._indices()[0]
 
-                        manifold.egrad2rgrad(p[indices], d_p._values())
-                        manifold._retr(p, d_p._values(), -lr, indices=indices)
+                        manifold.rgrad_(p[indices], d_p._values())
+                        manifold.retr_(p, d_p._values() * (-lr), indices=indices)
                     else:
                         d_p = p.grad.data
-                        manifold.egrad2rgrad(p.data, d_p)
-                        manifold._retr(p.data, d_p, -lr)
+                        manifold.rgrad_(p.data, d_p)
+                        manifold.retr_(p.data, d_p * (-lr))
                 
 
         return loss

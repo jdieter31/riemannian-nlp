@@ -7,6 +7,8 @@ import torch
 from data.graph import eval_reconstruction
 from manifold_embedding import ManifoldEmbedding
 
+from embed_save import load_model
+
 from torch.utils.tensorboard import SummaryWriter
 
 eval_ingredient = Ingredient('evaluation')
@@ -37,22 +39,10 @@ def async_eval(adj, log_queue, num_workers):
             continue
 
         epoch, elapsed, loss, path = temp
-        params = torch.load(path, map_location='cpu')
-        objects = params["objects"]
-        dimension = params["dimension"]
-        double_precision = params["double_precision"]
-        manifold = params["manifold"]
-
-        model = ManifoldEmbedding(
-            manifold,
-            len(objects),
-            dimension
-        )
-        model.to(torch.device('cpu'))
-        if double_precision:
-            model.double()
-        model.load_state_dict(params["model"])
-        embeddings = model.weight.data
+        model, save_data = load_model(path)
+        objects = save_data["objects"]
+        manifold = save_data["manifold"]
+        embeddings = save_data["embedding_matrix"]
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
 
         tensorboard_writer.add_scalar('mean_rank', meanrank, epoch)
@@ -71,7 +61,7 @@ def async_eval(adj, log_queue, num_workers):
 
 @eval_ingredient.config
 def config():
-    eval_workers = 7
+    eval_workers = 1
 
 @eval_ingredient.capture
 def initialize_eval(eval_workers, adjacent_list, log_queue_, tboard_dir):

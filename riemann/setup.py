@@ -3,7 +3,7 @@ import sysconfig
 from subprocess import check_output
 
 
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 from Cython.Build import cythonize
 import numpy
 
@@ -30,8 +30,7 @@ install_requires=["Cython", 'torch', 'geoopt', 'numpy']
 setup(
     name='riemanniannlp',
     version='0.1',
-    packages=['riemann'],
-    package_dir={'riemann':'.'},
+    packages=find_packages(),
     url='',
     license='',
     author='justin',
