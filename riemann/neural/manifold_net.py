@@ -15,10 +15,12 @@ class ManifoldNetwork(nn.Module):
         super(ManifoldNetwork, self).__init__()
         self.manifold_seq = manifold_seq
         self.dimension_seq = dimension_seq
-        self.layers = []
+        layer_list = []
         for i in range(len(manifold_seq) - 1):
-            self.layers.append(ManifoldLayer(manifold_seq[i], manifold_seq[i+1], dimension_seq[i],
+            layer_list.append(ManifoldLayer(manifold_seq[i], manifold_seq[i+1], dimension_seq[i],
                 dimension_seq[i+1], log_base_inits[i], exp_base_inits[i]))
+        self.layers = nn.ModuleList(layer_list)
+
     def forward(self, x):
         out = x
         for layer in self.layers:
@@ -35,6 +37,7 @@ class ManifoldNetwork(nn.Module):
     def from_save_data(cls, data):
         params = data['params']
         params += [[None for _ in range(len(params[0]) - 1)], [None for _ in range(len(params[0]) - 1)]]
+        print(params)
         instance = ManifoldNetwork(*params)
         instance.load_state_dict(data['state_dict'])
         return instance

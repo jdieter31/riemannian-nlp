@@ -18,6 +18,10 @@ class ManifoldLayer(nn.Module):
         self.in_manifold = in_manifold
         self.out_manifold = out_manifold
         self.in_dimension = in_dimension
+        print(in_manifold)
+        print(out_manifold)
+        print(in_dimension)
+        print(out_dimension)
         self.out_dimension = out_dimension
         if log_base_init is not None:
             self.log_base = ManifoldParameter(log_base_init, manifold=in_manifold)
