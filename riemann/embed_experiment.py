@@ -50,7 +50,7 @@ ex.logger = logger
 def config():
     n_epochs = 100
     eval_every = 10
-    gpu = 0
+    gpu = -1
     train_threads = 1
     embed_manifold_name = "PoincareBall"
     embed_manifold_dim = 5
