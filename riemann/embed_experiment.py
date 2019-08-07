@@ -48,32 +48,26 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 100
+    n_epochs = 1000
     eval_every = 10
     gpu = -1
     train_threads = 1
-    embed_manifold_name = "PoincareBall"
-    embed_manifold_dim = 5
-    embed_manifold_params = None
-    '''
+    embed_manifold_name = "EuclideanManifold"
+    embed_manifold_dim = 50
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "tensor_shape" : [10]
-            },
-            {
-                "name" : "SphericalManifold",
-                "tensor_shape" : [10]
+                "tensor_shape" : [25]
             },
             {
                 "name" : "EuclideanManifold",
-                "tensor_shape" : [10]
+                "tensor_shape" : [25]
             }
         ]
-    }'''
+    }
     double_precision = True
-    learning_rate = 0.003
+    learning_rate = 0.001
     sparse = True
     burnin_num = 10
     burnin_lr_mult = 0.1

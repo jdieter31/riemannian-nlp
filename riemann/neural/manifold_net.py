@@ -24,7 +24,7 @@ class ManifoldNetwork(nn.Module):
     def forward(self, x):
         out = x
         for layer in self.layers:
-            out = layer(x)
+            out = layer(out)
         return out
     
     def get_save_data(self):
@@ -37,7 +37,6 @@ class ManifoldNetwork(nn.Module):
     def from_save_data(cls, data):
         params = data['params']
         params += [[None for _ in range(len(params[0]) - 1)], [None for _ in range(len(params[0]) - 1)]]
-        print(params)
         instance = ManifoldNetwork(*params)
         instance.load_state_dict(data['state_dict'])
         return instance
