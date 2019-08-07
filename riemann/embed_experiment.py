@@ -52,7 +52,7 @@ def config():
     eval_every = 10
     gpu = -1
     train_threads = 1
-    embed_manifold_name = "EuclideanManifold"
+    embed_manifold_name = "ProductManifold"
     embed_manifold_dim = 50
     embed_manifold_params = {
        "submanifolds": [

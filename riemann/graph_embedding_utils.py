@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
-from torch.nn.functional import cross_entropy
+from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax
 from manifolds import RiemannianManifold
 from manifold_tensors import ManifoldParameter
 from typing import Dict, List
@@ -32,6 +32,26 @@ def manifold_dist_loss(model: nn.Module, inputs: torch.Tensor,
         # Minimize distance between words that are positive examples
         return cross_entropy(-dists, targets)
 
+def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, samples: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
+    """ Gives a loss function defined by the KL divergence of the distribution given by the manifold distance verses the provide train_distances
+    Args:
+        model (nn.Module): model that takes in graph indices and ouptuts embeddings
+        inputs (torch.Tensor): LongTensor of shape [batch_size] giving the indices of the vertices to be trained
+        samples (torch.Tensor): LongTensor of shape [batch_size, num_samples] containing the indices of the vertices samples
+        train_distances (torch.Tensor): floating point tensor of shape [batch_size, num_samples] containing the training distances from the input vertex to the sampled vertices
+        manifold (RiemannianManifold): Manifold that model embeds vertices into
+
+    Returns:
+        kl_div (scalar): KL Divergence of sampled distributions
+    """
+
+    input_embeddings = model(inputs)
+    samples_embeddings = model(samples)
+    input_embeddings.unsqueeze_(1)
+    manifold_dists = manifold.dist(input_embeddings.expand_as(samples_embeddings), samples_embeddings)
+    manifold_dist_distrib = log_softmax(-manifold_dists, -1)
+    train_distrib = softmax(train_distances, -1)
+    return kl_div(manifold_dist_distrib, train_distrib, reduction="batchmean")
 
 class ManifoldEmbedding(Embedding, Savable):
 

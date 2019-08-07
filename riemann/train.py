@@ -47,10 +47,9 @@ def train(
             inputs = inputs.to(device)
             targets = targets.to(device)
             optimizer.zero_grad()
-            with torch.autograd.detect_anomaly():
-                loss = manifold_dist_loss(model, inputs, targets, manifold)
-                loss.backward()
-                optimizer.step(lr=learning_rate)
+            loss = manifold_dist_loss(model, inputs, targets, manifold)
+            loss.backward()
+            optimizer.step(lr=learning_rate)
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 
