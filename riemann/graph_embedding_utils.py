@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
-from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax
+from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_
 from manifolds import RiemannianManifold
 from manifold_tensors import ManifoldParameter
 from typing import Dict, List
@@ -12,32 +12,31 @@ from embed_save import Savable
 import numpy as np
 
 def manifold_dist_loss(model: nn.Module, inputs: torch.Tensor,
-        targets: torch.Tensor, manifold: RiemannianManifold):
-        """
-        :param model: model that takes in graph indices and outputs embeddings
-        :param inputs: Tensor of shape [batch_size, 2 + number of negative examples]
-            Input to train on. The second dimension contains 2 + number of negative
-            examples as the first contains the word itself, followed by one positive
-            example and the rest of the negative examples
-        :param targets: Tensor of shape batch_size
-            Gves the index of where the positive example is in inputs out of
-            all of the negative examples trained on
-        :return: scalar
-        """
-        embeddings = model(inputs)
-        relations = embeddings.narrow(1, 1, embeddings.size(1) - 1)
-        word = embeddings.narrow(1, 0, 1).expand_as(relations)
-        dists = manifold.dist(word, relations)
+    targets: torch.Tensor, manifold: RiemannianManifold):
+    """
+    :param model: model that takes in graph indices and outputs embeddings
+    :param inputs: Tensor of shape [batch_size, 2 + number of negative examples]
+        Input to train on. The second dimension contains 2 + number of negative
+        examples as the first contains the word itself, followed by one positive
+        example and the rest of the negative examples
+    :param targets: Tensor of shape batch_size
+        Gves the index of where the positive example is in inputs out of
+        all of the negative examples trained on
+    :return: scalar
+    """
+    embeddings = model(inputs)
+    relations = embeddings.narrow(1, 1, embeddings.size(1) - 1)
+    word = embeddings.narrow(1, 0, 1).expand_as(relations)
+    dists = manifold.dist(word, relations)
 
-        # Minimize distance between words that are positive examples
-        return cross_entropy(-dists, targets)
+    # Minimize distance between words that are positive examples
+    return cross_entropy(-dists, targets)
 
-def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, samples: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
+def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
     """ Gives a loss function defined by the KL divergence of the distribution given by the manifold distance verses the provide train_distances
     Args:
         model (nn.Module): model that takes in graph indices and ouptuts embeddings
-        inputs (torch.Tensor): LongTensor of shape [batch_size] giving the indices of the vertices to be trained
-        samples (torch.Tensor): LongTensor of shape [batch_size, num_samples] containing the indices of the vertices samples
+        inputs (torch.Tensor): LongTensor of shape [batch_size, num_samples+1] giving the indices of the vertices to be trained with the first vertex in each element of the batch being the main vertex and the others being samples
         train_distances (torch.Tensor): floating point tensor of shape [batch_size, num_samples] containing the training distances from the input vertex to the sampled vertices
         manifold (RiemannianManifold): Manifold that model embeds vertices into
 
@@ -46,12 +45,43 @@ def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, samples: torch
     """
 
     input_embeddings = model(inputs)
-    samples_embeddings = model(samples)
-    input_embeddings.unsqueeze_(1)
-    manifold_dists = manifold.dist(input_embeddings.expand_as(samples_embeddings), samples_embeddings)
+    sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
+    main_vertices = input_embeddings.narrow(1,0,1).expand_as(sample_vertices)
+    manifold_dists = manifold.dist(main_vertices, sample_vertices)
+    manifold_dists_log = (manifold_dists + 0.01).log()
     manifold_dist_distrib = log_softmax(-manifold_dists, -1)
-    train_distrib = softmax(train_distances, -1)
+    train_dists_log = (train_distances + 0.01).log()
+    train_distrib = softmax(-train_distances, -1)
     return kl_div(manifold_dist_distrib, train_distrib, reduction="batchmean")
+
+def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
+    input_embeddings = model(inputs)
+    sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
+    main_vertices = input_embeddings.narrow(1, 0, 1).expand_as(sample_vertices)
+    manifold_dists = manifold.dist(main_vertices, sample_vertices)
+    sorted_indices = train_distances.argsort(dim=-1)
+    manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
+    diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1], manifold_dists.size()[1]]
+    row_expanded = manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
+    column_expanded = manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
+    margin = 1
+    diff_matrix = row_expanded - column_expanded + margin
+    train_dists_sorted = torch.gather(train_distances, -1, sorted_indices)
+    train_row_expanded = train_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
+    train_column_expanded = train_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
+    diff_matrix_train = train_row_expanded - train_column_expanded
+    masked_diff_matrix = torch.where(diff_matrix_train == 0, diff_matrix_train, diff_matrix)
+    masked_diff_matrix.triu_()
+    relu_(masked_diff_matrix)
+    masked_diff_matrix = masked_diff_matrix.sum(-1)
+    masked_diff_matrix += 1
+    masked_diff_matrix.log_()
+    order_scale = torch.arange(1, masked_diff_matrix.size()[1] + 1, device=masked_diff_matrix.device, dtype=masked_diff_matrix.dtype)
+    order_scale.pow_(1.5)
+    order_scale = order_scale.unsqueeze_(0).expand_as(masked_diff_matrix) 
+    masked_diff_matrix /= order_scale
+    loss = masked_diff_matrix.sum(-1).mean()
+    return loss
 
 class ManifoldEmbedding(Embedding, Savable):
 
@@ -112,7 +142,6 @@ class FeaturizedModelEmbedding(nn.Module):
     def get_embedding_matrix(self):
         out = self.embedding_model(self.input_embedding.weight.data)
         return out
-
 
     def get_savable_model(self):
         return self.embedding_model

@@ -13,7 +13,7 @@ from embed_eval import eval_ingredient
 import embed_eval
 from model_component import model_ingredient, gen_model
 from train import train
-
+import tensorboard_thread
 from rsgd_multithread import RiemannianSGD
 
 from torch.distributions import uniform
@@ -61,28 +61,27 @@ def config():
                 "tensor_shape" : [25]
             },
             {
-                "name" : "EuclideanManifold",
+                "name" : "SphericalManifold",
                 "tensor_shape" : [25]
             }
         ]
     }
-    double_precision = True
-    learning_rate = 0.001
+    learning_rate = 0.01
     sparse = True
     burnin_num = 10
-    burnin_lr_mult = 0.1
+    burnin_lr_mult = 1
     burnin_neg_multiplier = 0.1
     now = datetime.now()
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
     use_plateau_lr_scheduler = False
-    plateau_lr_scheduler_factor = 0.1
+    plateau_lr_scheduler_factor = 0.01
     plateau_lr_scheduler_patience = 2
     plateau_lr_scheduler_verbose = True
     plateau_lr_scheduler_threshold = 0.4
     plateau_lr_scheduler_min_lr = 0.1
-    use_lr_scheduler = False 
-    scheduled_lrs = [1] + list(np.geomspace(0.01, 10, num=40))
-    scheduled_lr_epochs = [10] + [1 for _ in range(39)]
+    use_lr_scheduler = True 
+    scheduled_lrs = [0.1, 0.01, 0.05, 0.1, 0.001]
+    scheduled_lr_epochs = [10, 40, 50, 200]
     use_lr_func = False 
     lr_func_name = "linear-values-[0.01, 10, 1]-epochs-[10, 30, 100]"
     def linear_func(epoch):
@@ -115,8 +114,11 @@ def embed(n_epochs, eval_every, gpu, train_threads, learning_rate, burnin_num, b
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
     torch.set_num_threads(1)
 
+    tensorboard_thread.initialize(tensorboard_dir)
+
     log_queue = mp.Queue()
-    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue, tboard_dir=tensorboard_dir)
+    embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data), log_queue_=log_queue)
+    
 
     embed_manifold = RiemannianManifold.from_name_params(embed_manifold_name, embed_manifold_params)
     model = gen_model(data, device, embed_manifold, embed_manifold_dim)
@@ -165,7 +167,7 @@ def embed(n_epochs, eval_every, gpu, train_threads, learning_rate, burnin_num, b
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, tensorboard_dir, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
+                args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, i, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -180,7 +182,7 @@ def embed(n_epochs, eval_every, gpu, train_threads, learning_rate, burnin_num, b
             embed_eval.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, tensorboard_dir, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
+        args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, learning_rate, burnin_num, burnin_lr_mult, shared_params, 0, log_queue, _log, plateau_lr_scheduler, lr_scheduler]
         try:
             train(*args)
         finally:

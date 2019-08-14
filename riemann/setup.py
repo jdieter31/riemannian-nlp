@@ -25,7 +25,7 @@ extensions = [Extension(
 
 
 ext_modules = cythonize(extensions)
-install_requires=["Cython", 'torch', 'geoopt', 'numpy']
+install_requires=["Cython", 'torch', 'numpy']
 
 setup(
     name='riemanniannlp',

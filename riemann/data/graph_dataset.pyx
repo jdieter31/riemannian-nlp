@@ -22,6 +22,9 @@ from libc.math cimport pow
 from libc.stdlib cimport rand, RAND_MAX
 import threading
 import queue
+from graph_tool.all import Graph, shortest_distance
+
+MAX_GRAPH_DIST = 5
 
 # Thread safe random number generation.  libcpp doesn't expose rand_r...
 cdef unsigned long rand_r(unsigned long* seed) nogil:
@@ -34,6 +37,9 @@ cdef class BatchedDataset:
     cdef public double neg_multiplier
     cdef public npc.ndarray counts
     cdef public list features
+    cdef public object graph
+    cdef public object sample_data
+    cdef public object graph_dists
 
     cdef long [:, :] idx
     cdef int nnegs, max_tries, N, batch_size, current, num_workers
@@ -45,7 +51,7 @@ cdef class BatchedDataset:
     cdef list threads
 
     def __cinit__(self, idx, objects, weights, nnegs, batch_size, num_workers,
-                  burnin=False, sample_dampening=0.75, features=None):
+            burnin=False, sample_dampening=0.75, features=None, sample_data="targets"):
         '''
         Create a dataset for training Hyperbolic embeddings.  Rather than
         allocating many tensors for individual dataset items, we instead
@@ -63,6 +69,9 @@ cdef class BatchedDataset:
             num_workers (int): Number of threads to use to produce each batch
             burnin (bool): ???
             features (list[any]): Features for each vertex in the graph
+            sample_data (str): Either 'targets' or 'graph_dist'. If 'targets' batches will give
+                a tensor showing which of the samples is the targeted positive example. If
+                'graph_dist' batches will give a tensor 
         '''
         self.idx = idx
         self.objects = objects
@@ -78,6 +87,28 @@ cdef class BatchedDataset:
         self.neg_multiplier = 1
         self.queue = queue.Queue(maxsize=num_workers)
         self.features = features
+        self.sample_data = sample_data
+        if sample_data == "graph_dist":
+
+            self.graph = Graph(directed=False)
+            self.graph.add_edge_list(idx)
+            print("Computing shortest graph distance")
+            self.graph_dists = shortest_distance(self.graph)
+            print("Finished computing shortest graph distance")
+            '''
+            source_vertex = graph_copy.vertex(inputs_detached[v_index])
+            sample_vertices = [graph_copy.vertex(s_index) for s_index in samples_detached[v_index]]
+            graph_dists_np[v_index, :] = shortest_distance(graph_copy, source_vertex, sample_vertices, max_dist=MAX_GRAPH_DIST)
+            '''
+            '''
+            self.graph = nx.Graph()
+            self.graph.add_edges_from(idx)
+            print("computing graph distances")
+            self.graph_dists = {}
+            for i, len_dict in tqdm(nx.all_pairs_shortest_path_length(self.graph, cutoff = MAX_GRAPH_DIST)):
+                self.graph_dists[i] = len_dict
+            print("finished computing graph distances")
+            '''
 
     # Setup the weights datastructure and sampling tables
     def _mk_weights(self, npc.ndarray[npc.long_t, ndim=2] idx, npc.ndarray[npc.double_t, ndim=1] weights):
@@ -141,7 +172,23 @@ cdef class BatchedDataset:
                 count = self._getbatch(current, memview)
             if count < self.batch_size:
                 ix = ix.narrow(0, 0, count)
-            self.queue.put((ix, torch.zeros(ix.size(0)).long()))
+            if self.sample_data == "targets":
+                self.queue.put((ix, torch.zeros(ix.size(0)).long()))
+            elif self.sample_data == "graph_dist":
+                # Something gets messed up with these tensors if these operations are not done on a copy
+                ixcp = ix.clone()
+                inputs = ixcp.narrow(1, 0, 1).squeeze()
+                samples = ixcp.narrow(1, 1, ix.size(1) - 1)
+                graph_dists = torch.zeros(samples.size())
+                graph_dists_np = graph_dists.numpy()
+                inputs_detached = inputs.cpu().detach().numpy()
+                samples_detached = samples.cpu().detach().numpy()
+                for v_index in range(graph_dists.size()[0]):
+                    source_vertex = inputs_detached[v_index]
+                    source_dists = self.graph_dists[source_vertex].a
+                    graph_dists_np[v_index, :] = source_dists[samples_detached[v_index, :]]
+                self.queue.put((ix, graph_dists))
+
         self.queue.put(i)
 
     def iter(self):

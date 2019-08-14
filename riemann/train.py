@@ -6,8 +6,8 @@ from embed_save import save_model
 import timeit
 import numpy as np
 from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
-from graph_embedding_utils import manifold_dist_loss
+from tensorboard_thread import write_tensorboard
+from graph_embedding_utils import manifold_dist_loss, manifold_dist_loss_kl, manifold_dist_loss_relu_sum
 
 def train(
         device,
@@ -22,15 +22,11 @@ def train(
         burnin_lr_mult,
         shared_params,
         thread_number,
-        tensorboard_dir,
         log_queue,
         log,
         plateau_lr_scheduler=None,
         lr_scheduler=None
         ):
-
-    if thread_number == 0:
-        tensorboard_writer = SummaryWriter(tensorboard_dir)
 
     for epoch in range(1, n_epochs + 1):
         data.burnin = False
@@ -43,11 +39,20 @@ def train(
         t_start = timeit.default_timer()
         data_iterator = tqdm(data) if thread_number == 0 else data
 
-        for inputs, targets in data_iterator:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            optimizer.zero_grad()
-            loss = manifold_dist_loss(model, inputs, targets, manifold)
+        for batch in data_iterator:
+            if data.sample_data == "targets":
+                inputs, targets = batch
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                optimizer.zero_grad()
+                loss = manifold_dist_loss(model, inputs, targets, manifold)
+            elif data.sample_data == "graph_dist":
+                inputs, graph_dists = batch
+                inputs = inputs.to(device)
+                graph_dists = graph_dists.to(device)
+                optimizer.zero_grad()
+                loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold)
+
             loss.backward()
             optimizer.step(lr=learning_rate)
             batch_losses.append(loss.cpu().detach().numpy())
@@ -66,10 +71,9 @@ def train(
 
         mean_loss = float(np.mean(batch_losses))
         if thread_number == 0:
-            tensorboard_writer.add_scalar('batch_loss', mean_loss, epoch)
+            write_tensorboard('add_scalar', ['batch_loss', mean_loss, epoch])
             if lr_scheduler is not None:
-                tensorboard_writer.add_scalar('learning_rate', lr_scheduler.get_lr()[0], epoch)
-            tensorboard_writer._get_file_writer().flush()
+                write_tensorboard('add_scalar', ['learning_rate', lr_scheduler.get_lr()[0], epoch])
 
             # Output log if main thread
             while not log_queue.empty():
@@ -81,6 +85,3 @@ def train(
         elif lr_scheduler is not None:
             lr_scheduler.step()
 
-
-    if thread_number == 0:
-        tensorboard_writer.close() 

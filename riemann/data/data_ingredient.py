@@ -8,19 +8,20 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/noun_closure.csv"
+    path = "data/mammals.csv"
     type = "edge"
     format = "hdf5"
-    symmetrize = True 
-    num_workers = 1
-    num_negs = 100
-    batch_size = 5000
+    symmetrize = False
+    num_workers = 3
+    num_negs = 50
+    batch_size = 1000
     sample_dampening = 0.75
     # placental_mammal.n.01 -> placental mammal
     object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
+    sample_data = "targets"
 
 @data_ingredient.capture
-def load_dataset(type, path,  num_negs, batch_size, num_workers, symmetrize, format, burnin, sample_dampening, object_id_to_feature_func=None):
+def load_dataset(type, path, num_negs, batch_size, num_workers, symmetrize, format, burnin, sample_dampening, sample_data, object_id_to_feature_func=None):
     if type == "edge":
         idx, objects, weights = load_edge_list(path, symmetrize)
     else:
@@ -29,10 +30,12 @@ def load_dataset(type, path,  num_negs, batch_size, num_workers, symmetrize, for
     if object_id_to_feature_func is not None:
         features = [object_id_to_feature_func(object_id) for object_id in objects]
 
-    return BatchedDataset(idx, objects, weights, num_negs, batch_size, num_workers, burnin, sample_dampening, features)
+    return BatchedDataset(idx, objects, weights, num_negs, batch_size, num_workers, burnin, sample_dampening, features, sample_data)
 
 def get_adjacency_dict(data):
     adj = {}
+    sample_data = data.sample_data
+    data.sample_data = "targets"
     for inputs, _ in data:
         for row in inputs:
             x = row[0].item()
@@ -41,4 +44,5 @@ def get_adjacency_dict(data):
                 adj[x].add(y)
             else:
                 adj[x] = {y}
+    data.sample_data = sample_data
     return adj

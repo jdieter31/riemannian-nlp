@@ -17,7 +17,7 @@ def config():
     while os.path.isfile(path + f"{i}.tch"):
         i += 1
     path += f"{i}.tch"
-    model_type = "embedding"
+    model_type = "featurized_model_manifold_network"
     intermediate_manifolds = [
         {
             "name": "ProductManifold",
@@ -39,9 +39,30 @@ def config():
                     }
                 ]
             }
+        },
+        {
+            "name": "ProductManifold",
+            "params": {
+                "submanifolds": [
+                    {
+                        "name": "PoincareBall",
+                        "tensor_shape": [10]
+                    },
+
+                    {
+                        "name": "EuclideanManifold",
+                        "tensor_shape": [20]
+                    },
+
+                    {
+                        "name": "PoincareBall",
+                        "tensor_shape": [20]
+                    }
+                ]
+            }
         }
     ]
-    intermediate_dims = [50]
+    intermediate_dims = [50, 50]
     sparse = True
     double_precision = False
     manifold_initialization = {
@@ -50,7 +71,8 @@ def config():
             'params': [-0.001, 0.001]
         },
         'global': {
-            'init_func': 'normal_'
+            'init_func': 'normal_',
+            'params': [0, 0.001]
         }
     }
     tries = 10
