@@ -6,7 +6,7 @@ from embed_save import save_model
 import timeit
 import numpy as np
 from tqdm import tqdm
-from tensorboard_thread import write_tensorboard
+from logging_thread import write_tensorboard
 from graph_embedding_utils import manifold_dist_loss, manifold_dist_loss_kl, manifold_dist_loss_relu_sum
 
 def train(
@@ -17,23 +17,16 @@ def train(
         optimizer,
         n_epochs,
         eval_every,
-        lr,
+        lr_scheduler,
         burnin_num,
-        burnin_lr_mult,
         shared_params,
         thread_number,
-        log_queue,
-        log,
-        plateau_lr_scheduler=None,
-        lr_scheduler=None
         ):
 
     for epoch in range(1, n_epochs + 1):
         data.burnin = False
-        learning_rate = None
         if epoch <= burnin_num:
             data.burnin = True
-            learning_rate = lr * burnin_lr_mult
 
         batch_losses = []
         t_start = timeit.default_timer()
@@ -54,7 +47,7 @@ def train(
                 loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold)
 
             loss.backward()
-            optimizer.step(lr=learning_rate)
+            optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 
@@ -72,16 +65,6 @@ def train(
         mean_loss = float(np.mean(batch_losses))
         if thread_number == 0:
             write_tensorboard('add_scalar', ['batch_loss', mean_loss, epoch])
-            if lr_scheduler is not None:
-                write_tensorboard('add_scalar', ['learning_rate', lr_scheduler.get_lr()[0], epoch])
+            write_tensorboard('add_scalar', ['learning_rate', lr_scheduler.get_lr()[0], epoch])
 
-            # Output log if main thread
-            while not log_queue.empty():
-                msg = log_queue.get()
-                log.info(msg)
-
-        if plateau_lr_scheduler is not None and epoch > burnin_num:
-            plateau_lr_scheduler.step(mean_loss)
-        elif lr_scheduler is not None:
-            lr_scheduler.step()
-
+        lr_scheduler.step()

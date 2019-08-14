@@ -8,15 +8,14 @@ from data.graph import eval_reconstruction
 
 from embed_save import load_model
 
-from tensorboard_thread import write_tensorboard
+from logging_thread import write_tensorboard, write_log
 
 eval_ingredient = Ingredient('evaluation')
 
 eval_queue = None
-log_queue = None
 process = None
 
-def async_eval(adj, log_queue, num_workers):
+def async_eval(adj, num_workers):
     global eval_queue
     if eval_queue is None:
         return
@@ -39,11 +38,12 @@ def async_eval(adj, log_queue, num_workers):
         objects = save_data["objects"]
         manifold = save_data["manifold"]
         embeddings = save_data["embedding_matrix"]
+        write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
+
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
 
         write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
         write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
-        write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
 
         lmsg = {
             'epoch': epoch,
@@ -52,20 +52,18 @@ def async_eval(adj, log_queue, num_workers):
             'mean_rank': meanrank,
             'map_rank': maprank
         }
-        log_queue.put(f"Stats: {json.dumps(lmsg)}")
+        write_log(f"Stats: {json.dumps(lmsg)}")
 
 @eval_ingredient.config
 def config():
     eval_workers = 5
 
 @eval_ingredient.capture
-def initialize_eval(eval_workers, adjacent_list, log_queue_):
-    global log_queue
-    log_queue = log_queue_
+def initialize_eval(eval_workers, adjacent_list):
     global eval_queue
     eval_queue = mp.Queue()
     global process
-    process = mp.Process(target=async_eval, args=(adjacent_list, log_queue_, eval_workers))
+    process = mp.Process(target=async_eval, args=(adjacent_list, eval_workers))
     process.start()
 
 @eval_ingredient.capture

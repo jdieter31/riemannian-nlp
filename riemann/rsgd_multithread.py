@@ -11,18 +11,16 @@ class RiemannianSGD(Optimizer):
     def __init__(
             self,
             params,
-            lr
+            lr=0.001
     ):
         defaults = {
             'lr': lr,
         }
         super(RiemannianSGD, self).__init__(params, defaults)
 
-    def step(self, lr=None, **kwargs):
+    def step(self, **kwargs):
         """Performs a single optimization step.
 
-        Arguments:
-            lr (float, optional): learning rate for the current update.
         """
         loss = None
         with torch.no_grad():
@@ -30,7 +28,7 @@ class RiemannianSGD(Optimizer):
                 for p in group['params']:
                     if p.grad is None:
                         continue
-                    lr = lr or group['lr']
+                    lr = group['lr']
                     if isinstance(p, ManifoldParameter):
                         manifold = p.manifold
                     else:
