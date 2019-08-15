@@ -17,6 +17,7 @@ from multiprocessing.pool import ThreadPool
 from functools import partial
 import h5py
 from tqdm import tqdm
+import random
 
 
 def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
@@ -199,9 +200,10 @@ def eval_reconstruction_slow(adj, lt, distfn):
     return np.mean(ranks), np.mean(ap_scores)
 
 
-def reconstruction_worker(adj, lt, distfn, objects, progress=False):
+def reconstruction_worker(adj, lt, distfn, objects, progress=False, samples=1000):
     ranksum = nranks = ap_scores = iters = 0
     labels = np.empty(lt.size(0))
+    objects = np.random.choice(objects, samples)
     for object in tqdm(objects) if progress else objects:
         labels.fill(0)
         neighbors = np.array(list(adj[object]))
@@ -232,7 +234,7 @@ def reconstruction_worker(adj, lt, distfn, objects, progress=False):
     return float(ranksum), nranks, ap_scores, iters
 
 
-def eval_reconstruction(adj, lt, distfn, workers=1, progress=False):
+def eval_reconstruction(adj, lt, distfn, workers=1, progress=False, samples=1000):
     '''
     Reconstruction evaluation.  For each object, rank its neighbors by distance
     Args:
@@ -245,9 +247,9 @@ def eval_reconstruction(adj, lt, distfn, workers=1, progress=False):
     objects = np.array(list(adj.keys()))
     if workers > 1:
         with ThreadPool(workers) as pool:
-            f = partial(reconstruction_worker, adj, lt, distfn)
+            f = partial(reconstruction_worker, adj, lt, distfn, samples=samples//workers)
             results = pool.map(f, np.array_split(objects, workers))
             results = np.array(results).sum(axis=0).astype(float)
     else:
-        results = reconstruction_worker(adj, lt, distfn, objects, progress)
+        results = reconstruction_worker(adj, lt, distfn, objects, progress, samples)
     return float(results[0]) / results[1], float(results[2]) / results[3]
