@@ -11,6 +11,8 @@ from tqdm import tqdm
 from embed_save import Savable
 import numpy as np
 
+EPSILON = 1e-9
+
 def manifold_dist_loss(model: nn.Module, inputs: torch.Tensor,
     targets: torch.Tensor, manifold: RiemannianManifold):
     """
@@ -54,18 +56,21 @@ def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, train_distance
     train_distrib = softmax(-train_distances, -1)
     return kl_div(manifold_dist_distrib, train_distrib, reduction="batchmean")
 
-def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
+def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold, margin=0.01, discount_factor=0.9):
     input_embeddings = model(inputs)
+
     sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
     main_vertices = input_embeddings.narrow(1, 0, 1).expand_as(sample_vertices)
     manifold_dists = manifold.dist(main_vertices, sample_vertices)
+
     sorted_indices = train_distances.argsort(dim=-1)
     manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
+    manifold_dists_sorted.add_(EPSILON).log_()
     diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1], manifold_dists.size()[1]]
     row_expanded = manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
     column_expanded = manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
-    margin = 1
     diff_matrix = row_expanded - column_expanded + margin
+
     train_dists_sorted = torch.gather(train_distances, -1, sorted_indices)
     train_row_expanded = train_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
     train_column_expanded = train_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
@@ -73,13 +78,11 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     masked_diff_matrix = torch.where(diff_matrix_train == 0, diff_matrix_train, diff_matrix)
     masked_diff_matrix.triu_()
     relu_(masked_diff_matrix)
-    masked_diff_matrix = masked_diff_matrix.sum(-1)
-    masked_diff_matrix += 1
-    masked_diff_matrix.log_()
-    order_scale = torch.arange(1, masked_diff_matrix.size()[1] + 1, device=masked_diff_matrix.device, dtype=masked_diff_matrix.dtype)
-    order_scale.pow_(1.5)
+    masked_diff_matrix = masked_diff_matrix.mean(-1)
+    order_scale = torch.arange(0, masked_diff_matrix.size()[1], device=masked_diff_matrix.device, dtype=masked_diff_matrix.dtype)
+    order_scale = (torch.ones_like(order_scale) * discount_factor).pow(order_scale)
     order_scale = order_scale.unsqueeze_(0).expand_as(masked_diff_matrix) 
-    masked_diff_matrix /= order_scale
+    masked_diff_matrix *= order_scale
     loss = masked_diff_matrix.sum(-1).mean()
     return loss
 

@@ -13,8 +13,8 @@ def config():
         fixed_schedule - Iterates through scheduled_lrs over durations specified in
             lr_durations and remains constant at the last lr
     """
-    schedule_type = "fixed_schedule"
-    base_lr = 0.5
+    schedule_type = "constant"
+    base_lr = 0.1
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 

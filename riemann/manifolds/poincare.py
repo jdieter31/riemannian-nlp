@@ -2,10 +2,10 @@ from .manifold import RiemannianManifold
 import torch
 
 # Defines how close to the boundary vectors can get
-EPSILON = 1e-9
+EPSILON = 1e-5
 # Minimum norm to allow division by
-MIN_NORM = 1e-15
-
+MIN_NORM = 1e-9
+MAX_NORM = 1e9
 
 """
 Some miscelaneous math before the class definition
@@ -109,6 +109,7 @@ class PoincareBall(RiemannianManifold):
     def exp(self, x, u):
         sqrt_c = self.c ** 0.5
         u_norm = u.norm(dim=-1, p=2, keepdim=True).clamp_min(MIN_NORM)
+        assert u_norm.max() < MAX_NORM
         second_term = tanh(sqrt_c / 2 * self.lambda_x(x, keepdim=True) * u_norm) * u / (sqrt_c * u_norm)
         gamma_1 = self.mobius_add(x, second_term)
         return gamma_1

@@ -29,7 +29,7 @@ def config():
                     },
 
                     {
-                        "name": "PoincareBall",
+                        "name": "SphericalManifold",
                         "tensor_shape": [20]
                     },
 

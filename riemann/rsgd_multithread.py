@@ -5,17 +5,22 @@ from torch.optim.optimizer import Optimizer, required
 import torch
 from manifold_tensors import ManifoldParameter
 from manifolds import EuclideanManifold
+from logging_thread import write_log
 
 class RiemannianSGD(Optimizer):
 
     def __init__(
             self,
             params,
-            lr=0.001
+            lr=0.001,
+            clip_grads=True,
+            clip_val=10
     ):
         defaults = {
             'lr': lr,
         }
+        self.clip_grads=clip_grads
+        self.clip_val=clip_val
         super(RiemannianSGD, self).__init__(params, defaults)
 
     def step(self, **kwargs):
@@ -41,11 +46,19 @@ class RiemannianSGD(Optimizer):
                         indices = d_p._indices()[0]
 
                         manifold.rgrad_(p[indices], d_p._values())
+                        if self.clip_grads:
+                            if d_p._values().max() > self.clip_val or d_p._values().min() < -self.clip_val:
+                                write_log(f"Warning -- riemannian-gradients were clipped on {manifold} with max_val {d_p._values().abs().max()}")
+
+                            d_p._values().clamp(-self.clip_val/lr, self.clip_val/lr)
                         manifold.retr_(p, d_p._values() * (-lr), indices=indices)
                     else:
                         d_p = p.grad.data
                         manifold.rgrad_(p.data, d_p)
+                        if self.clip_grads:
+                            if d_p.max() > self.clip_val or d_p.min() < -self.clip_val:
+                                write_log(f"Warning -- gradients were clipped on {manifold} with max_val {d_p.abs().max()}")
+                            d_p = d_p.clamp(-self.clip_val, self.clip_val)
                         manifold.retr_(p.data, d_p * (-lr))
-                
 
         return loss

@@ -73,7 +73,7 @@ class SphericalManifold(RiemannianManifold):
 
     def log(self, x, y):
         u = y - x
-        u.sub_((x * u).sum(dim=-1, keepdim=True) * x)
+        u = u - (x * u).sum(dim=-1, keepdim=True) * x
         dist = self.dist(x, y, keepdim=True)
         norm_u = u.norm(dim=-1, keepdim=True)
         cond = norm_u > EPSILON
@@ -81,8 +81,6 @@ class SphericalManifold(RiemannianManifold):
 
     def dist(self, x, y, keepdim=False):
         inner = (x * y).sum(-1, keepdim=keepdim)
-        # Scale slightly down to keep things differentiable and use Euclidean distance when
-        # it's an approriate approximation
         inner = inner.clamp(-1, 1)
         return acos(inner)
 

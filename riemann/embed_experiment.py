@@ -73,6 +73,10 @@ def config():
     now = datetime.now()
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
+    loss_params = {
+        "margin": 0.001,
+        "discount_factor": 0.5
+    }
 
 
 @ex.command
@@ -81,7 +85,6 @@ def embed(
         eval_every,
         gpu,
         train_threads,
-        learning_rate,
         burnin_num,
         burnin_neg_multiplier,
         sparse,
@@ -89,6 +92,7 @@ def embed(
         embed_manifold_name,
         embed_manifold_dim,
         embed_manifold_params,
+        loss_params,
         _log
         ):
     data = load_dataset(burnin=burnin_num > 0)
@@ -120,7 +124,7 @@ def embed(
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, i]
+                args = [device, model, embed_manifold, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, i]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -136,7 +140,7 @@ def embed(
             logging_thread.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, embed_manifold, data, optimizer, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, 0]
+        args = [device, model, embed_manifold, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, 0]
         try:
             train(*args)
         finally:

@@ -18,7 +18,7 @@ def config():
     sample_dampening = 0.75
     # placental_mammal.n.01 -> placental mammal
     object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    sample_data = "targets"
+    sample_data = "graph_dist"
 
 @data_ingredient.capture
 def load_dataset(type, path, num_negs, batch_size, num_workers, symmetrize, format, burnin, sample_dampening, sample_data, object_id_to_feature_func=None):

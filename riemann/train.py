@@ -15,6 +15,7 @@ def train(
         manifold,
         data,
         optimizer,
+        loss_params,
         n_epochs,
         eval_every,
         lr_scheduler,
@@ -33,21 +34,22 @@ def train(
         data_iterator = tqdm(data) if thread_number == 0 else data
 
         for batch in data_iterator:
-            if data.sample_data == "targets":
-                inputs, targets = batch
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-                optimizer.zero_grad()
-                loss = manifold_dist_loss(model, inputs, targets, manifold)
-            elif data.sample_data == "graph_dist":
-                inputs, graph_dists = batch
-                inputs = inputs.to(device)
-                graph_dists = graph_dists.to(device)
-                optimizer.zero_grad()
-                loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold)
+            with torch.autograd.detect_anomaly():
+                if data.sample_data == "targets":
+                    inputs, targets = batch
+                    inputs = inputs.to(device)
+                    targets = targets.to(device)
+                    optimizer.zero_grad()
+                    loss = manifold_dist_loss(model, inputs, targets, manifold)
+                elif data.sample_data == "graph_dist":
+                    inputs, graph_dists = batch
+                    inputs = inputs.to(device)
+                    graph_dists = graph_dists.to(device)
+                    optimizer.zero_grad()
+                    loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
 
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
             elapsed = timeit.default_timer() - t_start
 
