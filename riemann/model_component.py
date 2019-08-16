@@ -17,7 +17,7 @@ def config():
     while os.path.isfile(path + f"{i}.tch"):
         i += 1
     path += f"{i}.tch"
-    model_type = "featurized_model_manifold_network"
+    model_type = "featurized_model_manifold_logistic"
     intermediate_manifolds = [
         {
             "name": "ProductManifold",
