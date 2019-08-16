@@ -22,9 +22,6 @@ from libc.math cimport pow
 from libc.stdlib cimport rand, RAND_MAX
 import threading
 import queue
-from graph_tool.all import Graph, shortest_distance
-
-MAX_GRAPH_DIST = 5
 
 # Thread safe random number generation.  libcpp doesn't expose rand_r...
 cdef unsigned long rand_r(unsigned long* seed) nogil:
@@ -37,9 +34,7 @@ cdef class BatchedDataset:
     cdef public double neg_multiplier
     cdef public npc.ndarray counts
     cdef public list features
-    cdef public object graph
     cdef public object sample_data
-    cdef public object graph_dists
 
     cdef long [:, :] idx
     cdef int nnegs, max_tries, N, batch_size, current, num_workers
@@ -88,27 +83,6 @@ cdef class BatchedDataset:
         self.queue = queue.Queue(maxsize=num_workers)
         self.features = features
         self.sample_data = sample_data
-        if sample_data == "graph_dist":
-
-            self.graph = Graph(directed=False)
-            self.graph.add_edge_list(idx)
-            print("Computing shortest graph distance")
-            self.graph_dists = shortest_distance(self.graph)
-            print("Finished computing shortest graph distance")
-            '''
-            source_vertex = graph_copy.vertex(inputs_detached[v_index])
-            sample_vertices = [graph_copy.vertex(s_index) for s_index in samples_detached[v_index]]
-            graph_dists_np[v_index, :] = shortest_distance(graph_copy, source_vertex, sample_vertices, max_dist=MAX_GRAPH_DIST)
-            '''
-            '''
-            self.graph = nx.Graph()
-            self.graph.add_edges_from(idx)
-            print("computing graph distances")
-            self.graph_dists = {}
-            for i, len_dict in tqdm(nx.all_pairs_shortest_path_length(self.graph, cutoff = MAX_GRAPH_DIST)):
-                self.graph_dists[i] = len_dict
-            print("finished computing graph distances")
-            '''
 
     # Setup the weights datastructure and sampling tables
     def _mk_weights(self, npc.ndarray[npc.long_t, ndim=2] idx, npc.ndarray[npc.double_t, ndim=1] weights):
@@ -175,18 +149,9 @@ cdef class BatchedDataset:
             if self.sample_data == "targets":
                 self.queue.put((ix, torch.zeros(ix.size(0)).long()))
             elif self.sample_data == "graph_dist":
-                # Something gets messed up with these tensors if these operations are not done on a copy
-                ixcp = ix.clone()
-                inputs = ixcp.narrow(1, 0, 1).squeeze()
-                samples = ixcp.narrow(1, 1, ix.size(1) - 1)
-                graph_dists = torch.zeros(samples.size())
-                graph_dists_np = graph_dists.numpy()
-                inputs_detached = inputs.cpu().detach().numpy()
-                samples_detached = samples.cpu().detach().numpy()
-                for v_index in range(graph_dists.size()[0]):
-                    source_vertex = inputs_detached[v_index]
-                    source_dists = self.graph_dists[source_vertex].a
-                    graph_dists_np[v_index, :] = source_dists[samples_detached[v_index, :]]
+                graph_dists = torch.zeros((ix.size(0), ix.size(1) - 1))
+                graph_dists[:,0] = 1
+                graph_dists[:,1:] = 2
                 self.queue.put((ix, graph_dists))
 
         self.queue.put(i)
