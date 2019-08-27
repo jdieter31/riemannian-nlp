@@ -90,4 +90,19 @@ class SphericalManifold(RiemannianManifold):
     def rgrad_(self, x, dx):
         return dx.sub_((x * dx).sum(dim=-1, keepdim=True) * x)
 
+    def tangent_proj_matrix(self, x):
+        tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            tangent_matrix.unsqueeze_(0)
+        x_shape = x.size()
+        x_reduced = x.view(-1, x.size()[-1])
+        ortho_proj = torch.bmm(x_reduced.unsqueeze(-1), x_reduced.unsqueeze(-2)).view(*x.size(), x.size()[-1])
+        return tangent_matrix.expand(*x.size(), x.size()[-1]) - ortho_proj
+
+    def get_metric_tensor(self, x):
+        metric = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            metric.unsqueeze_(0)
+        return metric.expand(*x.size(), x.size()[-1])
+
 RiemannianManifold.register_manifold(SphericalManifold)

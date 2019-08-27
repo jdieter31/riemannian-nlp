@@ -42,4 +42,16 @@ class EuclideanManifold(RiemannianManifold):
     def rgrad_(self, x, dx):
         return dx
 
+    def tangent_proj_matrix(self, x):
+        tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            tangent_matrix.unsqueeze_(0)
+        return tangent_matrix.expand(*x.size(), x.size()[-1])
+
+    def get_metric_tensor(self, x):
+        metric = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            metric.unsqueeze_(0)
+        return metric.expand(*x.size(), x.size()[-1])
+
 RiemannianManifold.register_manifold(EuclideanManifold)

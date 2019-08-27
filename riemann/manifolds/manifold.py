@@ -138,8 +138,27 @@ class RiemannianManifold(abc.ABC):
         """
         raise NotImplementedError
 
+    @abc.abstractmethod
     def rgrad_(self, x: torch.Tensor, dx: torch.Tensor):
         """
         In-place version of rgrad where dx will be modified to become the Riemannian gradient
         """
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def tangent_proj_matrix(self, x: torch.Tensor):
+        """
+        Get matrix that projects tangent vectors in the Euclidean space that the manifold is
+        immersed in to the tangent space of the manifold at point x
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_metric_tensor(self, x: torch.Tensor):
+        """
+        Get the metric tensor at point x
+        """
+        raise NotImplementedError
+
+    
+

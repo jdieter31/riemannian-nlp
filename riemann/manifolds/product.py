@@ -10,35 +10,34 @@ class ProductManifold(RiemannianManifold):
     def from_params(cls, params):
         if "submanifolds" in params:
             submanifolds = []
-            tensor_shapes = []
+            submanifold_dims = []
             for i in range(len(params["submanifolds"])):
                 submanifold = params["submanifolds"][i]
                 name = submanifold["name"] 
-                tensor_shapes.append(submanifold["tensor_shape"])
+                submanifold_dims.append(submanifold["dimension"])
                 if "params" in submanifold:
                     submanifolds.append(RiemannianManifold.from_name_params(name, submanifold["params"]))
                 else:
                     submanifolds.append(RiemannianManifold.from_name_params(name, None))
-            return ProductManifold(submanifolds, np.array(tensor_shapes))
+            return ProductManifold(submanifolds, submanifold_dims)
 
         raise Exception("Improper ProductManifold param layout")
 
-    def __init__(self, submanifolds: List[RiemannianManifold], tensor_shapes: np.array):
+    def __init__(self, submanifolds: List[RiemannianManifold], submanifold_dims: List[int]):
         """
         Args:
             submanifolds (List[RiemannianManifold]):  List of submanifolds
-            tensor_shapes (np.array): List of required shapes for each submanifold (length of first dimension should be the same length as submanifolds)
+            submanifold_dims (List[int]): Dimensions of submanifolds
         """
         RiemannianManifold.__init__(self)
         self.submanifolds = submanifolds
-        self.tensor_shapes = tensor_shapes
+        self.submanifold_dims = submanifold_dims
         # Get slices for each submanifold for easy access
         slice_start = 0
         # List of slices for each submanifold
         self.slices = []
         for i in range(len(self.submanifolds)):
-            shape = self.tensor_shapes[i]
-            dimension = int(np.sum(shape))
+            dimension = self.submanifold_dims[i]
             slice_end = slice_start + dimension
             self.slices.append((slice_start, dimension))
             slice_start = slice_end
@@ -54,23 +53,10 @@ class ProductManifold(RiemannianManifold):
         Gets the value of x in the respective submanifold given by the index
         """
         sub_slice = self.slices[submanifold_index]
-        new_shape = x.size()
-        new_shape = new_shape[0:-1]
-        new_shape = list(new_shape) + list(self.tensor_shapes[submanifold_index])
-
-        return x.narrow(-1, sub_slice[0], sub_slice[1]).view(new_shape)
+        return x.narrow(-1, sub_slice[0], sub_slice[1])
 
     def initialize_from_submanifold_values(self, submanifold_values: List[torch.Tensor]):
-        flattened_tensors = []
-        new_shape = []
-        for i in range(len(self.submanifolds)):
-            submanifold_value = submanifold_values[i]
-            submanifold = self.submanifolds[i]
-            submanifold_shape = self.tensor_shapes[i]
-            new_shape = list(submanifold_value.size())[:-len(submanifold_shape)] + [-1]
-            flattened_tensors.append(submanifold_value.reshape(new_shape))
-
-        return torch.cat(flattened_tensors, dim=-1)
+        return torch.cat([submanifold_values[i] for i in range(len(self.submanifolds))], dim=-1)
 
     def retr_(self, x, u, indices=None):
         for i in range(len(self.submanifolds)):
@@ -145,5 +131,21 @@ class ProductManifold(RiemannianManifold):
             sub_dx = self.get_submanifold_value_index(dx, i)
             self.submanifolds[i].rgrad_(sub_x, sub_dx)
         return dx
+    
+    def tangent_proj_matrix(self, x):
+        tangent_proj_matrix = torch.zeros(*x.size(), x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(self.submanifolds)):
+            sub_slice = self.slices[i]
+            sub_matrix = tangent_proj_matrix.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
+            sub_matrix.copy_(self.submanifolds[i].tangent_proj_matrix(self.get_submanifold_value_index(x, i)))
+        return tangent_proj_matrix
+
+    def get_metric_tensor(self, x):
+        metric_tensor = torch.zeros(*x.size(), x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(self.submanifolds)):
+            sub_slice = self.slices[i]
+            sub_matrix = metric_tensor.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
+            sub_matrix.copy_(self.submanifolds[i].get_metric_tensor(self.get_submanifold_value_index(x, i)))
+        return metric_tensor
 
 RiemannianManifold.register_manifold(ProductManifold)

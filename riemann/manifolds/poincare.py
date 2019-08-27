@@ -143,4 +143,20 @@ class PoincareBall(RiemannianManifold):
     def rgrad_(self, x, dx):
         return dx.div_(self.lambda_x(x, keepdim=True) ** 2)
 
+    def tangent_proj_matrix(self, x):
+        tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            tangent_matrix.unsqueeze_(0)
+        return tangent_matrix.expand(*x.size(), x.size()[-1])
+
+    def get_metric_tensor(self, x):
+        metric = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
+        for i in range(len(x.size()) - 1):
+            metric.unsqueeze_(0)
+        metric = metric.expand(*x.size(), x.size()[-1])
+        scaling_factor = self.lambda_x(x, keepdim=True)
+        scaling_factor.unsqueeze_(-1)
+        metric = metric * scaling_factor
+        return metric
+
 RiemannianManifold.register_manifold(PoincareBall)

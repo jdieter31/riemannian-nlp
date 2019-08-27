@@ -83,7 +83,7 @@ def eval_benchmark(benchmark, dist_func):
 @eval_ingredient.config
 def config():
     eval_workers = 5
-    benchmarks = ['usf', 'ws353', 'men', 'vis_sim', 'sem_sim', 'simlex', 'simlex-q1', 'simlex-q2', 'simlex-q3', 'simlex-q4', 'mturk771', 'rw']
+    benchmarks = ['usf', 'men_dev', 'vis_sim', 'sem_sim']
 
 @eval_ingredient.capture
 def initialize_eval(eval_workers, adjacent_list, benchmarks):

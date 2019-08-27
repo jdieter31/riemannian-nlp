@@ -8,7 +8,7 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/concept_net.csv"
+    path = "data/mammals.csv"
     type = "edge"
     format = "hdf5"
     symmetrize = False
@@ -17,8 +17,8 @@ def config():
     batch_size = 1000
     sample_dampening = 0.75
     # placental_mammal.n.01 -> placental mammal
-    # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
+    object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
+    # object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
 
     sample_data = "graph_dist"
 

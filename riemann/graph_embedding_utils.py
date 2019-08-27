@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
-from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_
+from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_, mse_loss, cosine_similarity
 from manifolds import RiemannianManifold
 from manifold_tensors import ManifoldParameter
 from typing import Dict, List
@@ -9,6 +9,7 @@ from embedding import GloveSentenceEmbedder
 from embedding import SimpleSentence
 from tqdm import tqdm
 from embed_save import Savable
+from jacobian import compute_jacobian
 import numpy as np
 
 EPSILON = 1e-9
@@ -57,6 +58,17 @@ def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, train_distance
     return kl_div(manifold_dist_distrib, train_distrib, reduction="batchmean")
 
 def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold, margin=0.01, discount_factor=0.9):
+    """ See write up for details on this loss function -- encourages embeddings to preserve graph topology
+    Args:
+        model (nn.Module): model that takes in graph indices and outputs embeddings
+        inputs (torch.Tensor): LongTensor of shape [batch_size, num_samples+1] giving the indices of the vertices to be trained with the first vertex in each element of the batch being the main vertex and the others being samples
+        train_distances (torch.Tensor): floating point tensor of shape [batch_size, num_samples] containing the training distances from the input vertex to the sampled vertices
+        manifold (RiemannianManifold): Manifold that model embeds vertices into
+
+    Returns:
+        loss (scalar): Computed loss
+    """
+    
     input_embeddings = model(inputs)
 
     sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
@@ -85,6 +97,35 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     masked_diff_matrix *= order_scale
     loss = masked_diff_matrix.sum(-1).mean()
     return loss
+
+def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold, out_manifold: RiemannianManifold, out_dimension, isometric=False):
+    input_embeddings = model.input_embedding(input_embeddings)
+    model = model.embedding_model
+    jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
+    tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
+    tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
+    jacobian_shape = jacobian.size()
+    tangent_proj_out_shape = tangent_proj_out.size()
+    tangent_proj_in_shape = tangent_proj_in.size()
+    tangent_proj_in_batch = tangent_proj_in.view(-1, tangent_proj_in_shape[-2], tangent_proj_in_shape[-1])
+    tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2], tangent_proj_out_shape[-1])
+    jacobian_batch = jacobian.view(-1, jacobian_shape[-2], jacobian_shape[-1])
+    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch), tangent_proj_in_batch)
+    metric_conjugator_t = torch.transpose(metric_conjugator, -2, -1)
+    out_metric = out_manifold.get_metric_tensor(model_out)
+    out_metric_shape = out_metric.size()
+    out_metric_batch = out_metric.view(-1, out_metric_shape[-2], out_metric_shape[-1])
+    pullback_metric = torch.bmm(torch.bmm(metric_conjugator_t, out_metric_batch), metric_conjugator)
+    in_metric = in_manifold.get_metric_tensor(input_embeddings)
+    in_metric_shape = in_metric.size()
+    in_metric_batch = in_metric.view(-1, in_metric_shape[-2], in_metric_shape[-1])
+    in_metric_flattened = in_metric_batch.view(in_metric_batch.size()[0], -1)
+    pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
+
+    if isometric:
+        return mse_loss(pullback_flattened, in_metric_flattened)
+    else:
+        return -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
 
 class ManifoldEmbedding(Embedding, Savable):
 
