@@ -11,6 +11,7 @@ from tqdm import tqdm
 from embed_save import Savable
 from jacobian import compute_jacobian
 import numpy as np
+from manifold_initialization import initialize_manifold_tensor
 
 EPSILON = 1e-9
 
@@ -98,8 +99,13 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     loss = masked_diff_matrix.sum(-1).mean()
     return loss
 
-def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold, out_manifold: RiemannianManifold, out_dimension, isometric=False):
+def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold, out_manifold: RiemannianManifold, out_dimension, isometric=False, random_samples=0, random_init = None):
     input_embeddings = model.input_embedding(input_embeddings)
+    if random_samples > 0:
+        random_samples = torch.empty(random_samples, input_embeddings.size()[1], dtype=input_embeddings.dtype, device=input_embeddings.device)
+        initialize_manifold_tensor(random_samples, RiemannianManifold.from_name_params("SphericalManifold", None), random_init)
+        input_embeddings = torch.cat([input_embeddings, random_samples])
+
     model = model.embedding_model
     jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
@@ -123,7 +129,7 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
     if isometric:
-        return mse_loss(pullback_flattened, in_metric_flattened)
+        return torch.mean((pullback_flattened - in_metric_flattened).pow(2).sum(-1))
     else:
         return -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
 
@@ -167,14 +173,14 @@ class ManifoldEmbedding(Embedding, Savable):
         return self
 
 class FeaturizedModelEmbedding(nn.Module):
-    def __init__(self, embedding_model: nn.Module, features_list, featurizer=None, featurizer_dim=0):
+    def __init__(self, embedding_model: nn.Module, features_list, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None):
         super(FeaturizedModelEmbedding, self).__init__()
         self.embedding_model = embedding_model
         if featurizer is None:
             featurizer, featurizer_dim = get_canonical_glove_sentence_featurizer()
         self.featurizer = featurizer
         self.featurizer_dim = featurizer_dim
-        self.input_embedding = get_featurized_embedding(features_list, featurizer, featurizer_dim)
+        self.input_embedding = get_featurized_embedding(features_list, featurizer, featurizer_dim, dtype=dtype, device=device)
 
     def forward(self, x):
         return self.embedding_model(self.input_embedding(x))
@@ -194,10 +200,13 @@ def get_canonical_glove_sentence_featurizer():
     embedder = GloveSentenceEmbedder.canonical()
     return lambda sent : embedder.embed(SimpleSentence.from_text(sent)), embedder.dim
 
-def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=torch.double):
+def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=torch.float, device=None, verbose=True):
     embeddings_list = np.empty((len(features), featurizer_dim))
-    print("Processing features of dataset...") 
-    for i in tqdm(range(len(features))):
+    iterator = range(len(features))
+    if verbose:
+        print("Processing features of dataset...") 
+        iterator = tqdm(iterator)
+    for i in iterator:
         embeddings_list[i] = featurizer(features[i])
-    return Embedding.from_pretrained(torch.as_tensor(np.array(embeddings_list)))
+    return Embedding.from_pretrained(torch.as_tensor(np.array(embeddings_list), dtype=dtype, device=device))
 

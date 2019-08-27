@@ -83,8 +83,15 @@ def config():
     }
     conformal_loss_params = {
         "weight": 1,
-        "num_samples": 30,
+        "num_samples": 15,
         "isometric": False,
+        "random_samples": 15,
+        "random_init": {
+            'global': {
+                'init_func': 'normal_',
+                'params': [0, 0.01]
+            }
+        },
         "update_every": 1
     }
 

@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from logging_thread import write_tensorboard
 from graph_embedding_utils import manifold_dist_loss, manifold_dist_loss_kl, manifold_dist_loss_relu_sum, metric_loss
+from manifold_initialization import initialize_manifold_tensor
 
 def train(
         device,
@@ -57,7 +58,9 @@ def train(
                     perm = torch.randperm(main_inputs.size(0))
                     idx = perm[:conformal_loss_params["num_samples"]]
                     main_inputs = main_inputs[idx]
-                    conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension, isometric=conformal_loss_params["isometric"])
+                    conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
+                            isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
+                            random_init=conformal_loss_params["random_init"])
 
             if conformal_loss_params is not None and conf_loss is not None:
                 total_loss = loss + conformal_loss_params["weight"] * conf_loss
@@ -75,7 +78,7 @@ def train(
             mean_loss = float(np.mean(batch_losses))
             savable_model = model.get_savable_model()
             save_data = {
-                'embedding_matrix': model.get_embedding_matrix(),
+                'features': data.features,
                 'epoch': epoch
             }
             save_data.update(shared_params)
@@ -84,7 +87,7 @@ def train(
 
         mean_loss = float(np.mean(batch_losses))
         if thread_number == 0:
-            if conformal_loss_params is not None:
+            if conformal_loss_params is not None and len(batch_conf_losses) > 0:
                 mean_conf_loss = float(np.mean(batch_conf_losses))
                 metric_loss_type = "isometric" if conformal_loss_params["isometric"] else "conformal"
                 write_tensorboard('add_scalar', [f'batch_{metric_loss_type}_loss', mean_conf_loss, epoch])

@@ -3,6 +3,7 @@ import torch
 from manifolds import RiemannianManifold
 from manifold_tensors import ManifoldParameter
 from embed_save import Savable
+from torch.nn.init import orthogonal_
 
 class ManifoldLayer(nn.Module):
     def __init__(
@@ -13,6 +14,7 @@ class ManifoldLayer(nn.Module):
             out_dimension: int,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
+            ortho_init=True
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold
@@ -29,6 +31,8 @@ class ManifoldLayer(nn.Module):
             self.exp_base = ManifoldParameter(torch.Tensor(out_dimension), manifold=out_manifold)
 
         self.linear_layer = nn.Linear(in_dimension, out_dimension, bias=False)
+        if ortho_init:
+            orthogonal_(self.linear_layer.weight)
 
     def forward(self, x):
         log_x = self.in_manifold.log(self.log_base, x)

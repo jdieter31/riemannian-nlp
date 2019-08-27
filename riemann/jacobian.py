@@ -22,7 +22,7 @@ def compute_jacobian(f, x, noutputs):
         x = x.repeat(noutputs, *[1 for _ in range(len(x.size()) - 1)])
     x.requires_grad_(True)
     y = f(x)
-    grad_in = torch.eye(noutputs)
+    grad_in = torch.eye(noutputs, dtype=x.dtype, device=x.device)
     for i in range(len(x.size()) - 2):
         grad_in.unsqueeze_(1)
     grad_in = grad_in.expand_as(y)
