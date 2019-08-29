@@ -8,7 +8,7 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/nouns.csv"
+    path = "data/mammals.csv"
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False

@@ -20,6 +20,7 @@ def train(
         loss_params,
         n_epochs,
         eval_every,
+        sample_neighbors_every,
         lr_scheduler,
         shared_params,
         thread_number,
@@ -33,7 +34,8 @@ def train(
         if conformal_loss_params is not None:
             batch_conf_losses = []
         t_start = timeit.default_timer()
-        data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
+        if (epoch - 1) % sample_neighbors_every == 0 and thread_number == 0:
+            data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
         data_iterator = tqdm(data) if thread_number == 0 else data
 
         for batch in data_iterator:

@@ -13,13 +13,13 @@ def config():
         fixed_schedule - Iterates through scheduled_lrs over durations specified in
             lr_durations and remains constant at the last lr
     """
-    schedule_type = "constant"
-    base_lr = 5
+    schedule_type = "fixed_schedule"
+    base_lr = 0.5
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 
-    scheduled_lrs = [0.01, 0.1, 1]
-    lr_durations = [5, 5]
+    scheduled_lrs = [0.01, 0.1, 1, 5, 1, 0.1, 0.01]
+    lr_durations = [10, 10, 20, 20, 20, 20]
 
 @lr_schedule_ingredient.capture
 def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durations):

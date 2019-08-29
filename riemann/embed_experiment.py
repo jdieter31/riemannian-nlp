@@ -92,6 +92,7 @@ def config():
         },
         "update_every": 1
     }
+    sample_neighbors_every = 10
 
 
 @ex.command
@@ -107,6 +108,7 @@ def embed(
         embed_manifold_params,
         loss_params,
         conformal_loss_params,
+        sample_neighbors_every,
         _log
         ):
 
@@ -138,7 +140,7 @@ def embed(
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, shared_params, i, feature_manifold, conformal_loss_params]
+                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, i, feature_manifold, conformal_loss_params]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -154,7 +156,7 @@ def embed(
             logging_thread.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, shared_params, 0, feature_manifold, conformal_loss_params]
+        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, 0, feature_manifold, conformal_loss_params]
         try:
             train(*args)
         finally:
