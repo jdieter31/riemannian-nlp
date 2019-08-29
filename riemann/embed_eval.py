@@ -27,7 +27,7 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
     if len(benchmarks_to_eval) > 0:
         benchmarks = process_benchmarks()
-    featurizer, featurizer_dim = get_canonical_glove_sentence_featurizer()
+    featurizer, featurizer_dim = None, 0 
     graph_embedding_model = None
 
     while True:
@@ -48,6 +48,8 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
         objects = save_data["objects"]
         manifold = save_data["manifold"]
         if "features" in save_data:
+            if featurizer is None:
+                featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
             if graph_embedding_model is None:
                 graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], featurizer=featurizer, featurizer_dim=featurizer_dim)
             else:
@@ -60,17 +62,6 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
 
-        benchmark_results = {}
-        for benchmark in benchmarks_to_eval:
-            featurize = lambda w: embeddings.new_tensor(featurizer(w))
-            dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
-            rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func) 
-            benchmark_results[f"{benchmark}_rho"] = rho
-            write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, epoch])
-
-        write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-        write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
-
         lmsg = {
             'epoch': epoch,
             'elapsed': elapsed,
@@ -78,7 +69,21 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
             'mean_rank': meanrank,
             'map_rank': maprank
         }
-        lmsg.update(benchmark_results)
+
+        if featurizer is not None:
+            benchmark_results = {}
+            for benchmark in benchmarks_to_eval:
+                featurize = lambda w: embeddings.new_tensor(featurizer(w))
+                dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
+                rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func) 
+                benchmark_results[f"{benchmark}_rho"] = rho
+                write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, epoch])
+            
+            lmsg.update(benchmark_results)
+
+        write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
+        write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
+
         write_log(f"Stats: {json.dumps(lmsg)}")
 
 def eval_benchmark(benchmark, dist_func):

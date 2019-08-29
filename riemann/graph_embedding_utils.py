@@ -128,10 +128,12 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     in_metric_flattened = in_metric_batch.view(in_metric_batch.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
+
+    loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
+
     if isometric:
-        return torch.mean((pullback_flattened - in_metric_flattened).pow(2).sum(-1))
-    else:
-        return -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
+        loss += ((pullback_flattened.norm(dim=-1) + 1).log() - (in_metric_flattened.norm(dim=-1) + 1).log()).abs().mean()
+    return loss
 
 class ManifoldEmbedding(Embedding, Savable):
 

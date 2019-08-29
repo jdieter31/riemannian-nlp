@@ -109,7 +109,6 @@ class PoincareBall(RiemannianManifold):
     def exp(self, x, u):
         sqrt_c = self.c ** 0.5
         u_norm = u.norm(dim=-1, p=2, keepdim=True).clamp_min(MIN_NORM)
-        assert u_norm.max() < MAX_NORM
         second_term = tanh(sqrt_c / 2 * self.lambda_x(x, keepdim=True) * u_norm) * u / (sqrt_c * u_norm)
         gamma_1 = self.mobius_add(x, second_term)
         return gamma_1

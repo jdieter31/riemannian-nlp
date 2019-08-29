@@ -21,7 +21,6 @@ def train(
         n_epochs,
         eval_every,
         lr_scheduler,
-        burnin_num,
         shared_params,
         thread_number,
         feature_manifold,
@@ -29,38 +28,29 @@ def train(
         ):
 
     for epoch in range(1, n_epochs + 1):
-        data.burnin = False
-        if epoch <= burnin_num:
-            data.burnin = True
 
         batch_losses = []
         if conformal_loss_params is not None:
             batch_conf_losses = []
         t_start = timeit.default_timer()
+        data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
         data_iterator = tqdm(data) if thread_number == 0 else data
 
         for batch in data_iterator:
             conf_loss = None
-            if data.sample_data == "targets":
-                inputs, targets = batch
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-                optimizer.zero_grad()
-                loss = manifold_dist_loss(model, inputs, targets, manifold)
-            elif data.sample_data == "graph_dist":
-                inputs, graph_dists = batch
-                inputs = inputs.to(device)
-                graph_dists = graph_dists.to(device)
-                optimizer.zero_grad()
-                loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
-                if hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
-                    main_inputs = inputs.narrow(1, 0, 1).squeeze(1)
-                    perm = torch.randperm(main_inputs.size(0))
-                    idx = perm[:conformal_loss_params["num_samples"]]
-                    main_inputs = main_inputs[idx]
-                    conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
-                            isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
-                            random_init=conformal_loss_params["random_init"])
+            inputs, graph_dists = batch
+            inputs = inputs.to(device)
+            graph_dists = graph_dists.to(device)
+            optimizer.zero_grad()
+            loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
+            if hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
+                main_inputs = inputs.narrow(1, 0, 1).squeeze(1)
+                perm = torch.randperm(main_inputs.size(0))
+                idx = perm[:conformal_loss_params["num_samples"]]
+                main_inputs = main_inputs[idx]
+                conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
+                        isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
+                        random_init=conformal_loss_params["random_init"])
 
             if conformal_loss_params is not None and conf_loss is not None:
                 total_loss = loss + conformal_loss_params["weight"] * conf_loss
@@ -78,9 +68,11 @@ def train(
             mean_loss = float(np.mean(batch_losses))
             savable_model = model.get_savable_model()
             save_data = {
-                'features': data.features,
                 'epoch': epoch
             }
+            if data.features is not None:
+                save_data["features"] = data.features
+
             save_data.update(shared_params)
             path = save_model(savable_model, save_data)
             embed_eval.evaluate(epoch, elapsed, mean_loss, path)

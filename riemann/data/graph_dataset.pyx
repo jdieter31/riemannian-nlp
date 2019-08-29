@@ -18,10 +18,14 @@ from libcpp cimport bool
 from libcpp.vector cimport vector
 from libcpp.unordered_set cimport unordered_set
 from libcpp.unordered_map cimport unordered_map
+from libcpp.utility cimport pair
 from libc.math cimport pow
-from libc.stdlib cimport rand, RAND_MAX
+from libc.stdlib cimport rand, RAND_MAX, malloc, free
+from libc.stdio cimport printf
 import threading
 import queue
+from graph_tool.all import Graph
+from manifold_nns import ManifoldNNS
 
 # Thread safe random number generation.  libcpp doesn't expose rand_r...
 cdef unsigned long rand_r(unsigned long* seed) nogil:
@@ -30,23 +34,20 @@ cdef unsigned long rand_r(unsigned long* seed) nogil:
 
 cdef class BatchedDataset:
     cdef public list objects
-    cdef public bool burnin
-    cdef public double neg_multiplier
-    cdef public npc.ndarray counts
     cdef public list features
-    cdef public object sample_data
-
-    cdef long [:, :] idx
-    cdef int nnegs, max_tries, N, batch_size, current, num_workers
-    cdef double sample_dampening
-    cdef vector[unordered_map[long, double]] _weights
-    cdef double [:] S
-    cdef long [:] A, perm
+    cdef public object idx
+    cdef object manifold
+    cdef int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers
     cdef object queue
+    cdef object graph
+    cdef object[:] graph_neighbors
+    cdef object[:] manifold_neighbors
+    cdef long[:] perm
+    cdef object[:] graph_neighbor_permutations
     cdef list threads
 
-    def __cinit__(self, idx, objects, weights, nnegs, batch_size, num_workers,
-            burnin=False, sample_dampening=0.75, features=None, sample_data="targets"):
+    def __cinit__(self, idx, objects, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
+            batch_size, num_workers, manifold_nn_k=60, features=None):
         '''
         Create a dataset for training Hyperbolic embeddings.  Rather than
         allocating many tensors for individual dataset items, we instead
@@ -70,61 +71,35 @@ cdef class BatchedDataset:
         '''
         self.idx = idx
         self.objects = objects
-        self.nnegs = nnegs
-        self.burnin = burnin
+        self.manifold = manifold
+        self.n_graph_neighbors = n_graph_neighbors
+        self.n_manifold_neighbors = n_manifold_neighbors
         self.N = len(objects)
-        self.counts = np.zeros((self.N), dtype=np.double)
-        self.num_workers = num_workers
         self.batch_size = batch_size
-        self.sample_dampening = sample_dampening
-        self._mk_weights(idx, weights)
-        self.max_tries = 10 * nnegs
-        self.neg_multiplier = 1
-        self.queue = queue.Queue(maxsize=num_workers)
         self.features = features
-        self.sample_data = sample_data
+        self.queue = queue.Queue(maxsize=num_workers)
+        self.graph = Graph(directed=False)
+        self.graph.add_edge_list(idx)
+        self.manifold_nn_k = manifold_nn_k
+        self.num_workers = num_workers
+        self.manifold_neighbors = np.empty(self.N, dtype=object)
+        self.graph_neighbor_permutations = np.empty(self.N, dtype=object)
+        self.graph_neighbors = np.empty(self.N, dtype=object)
+        for i in range(self.N):
+            self.graph_neighbors[i] = self.graph.get_all_neighbors(i)
 
-    # Setup the weights datastructure and sampling tables
-    def _mk_weights(self, npc.ndarray[npc.long_t, ndim=2] idx, npc.ndarray[npc.double_t, ndim=1] weights):
-        cdef int i
-        cdef long t, h
-        cdef set Tl, Th
-        cdef npc.ndarray[npc.long_t, ndim=1] A
-        cdef npc.ndarray[npc.double_t, ndim=1] S
-
-        self._weights.resize(self.N)
-
-        for i in range(idx.shape[0]):
-            t = idx[i, 0]
-            h = idx[i, 1]
-            self.counts[h] += weights[i]
-            self._weights[t][h] = weights[i]
-
-        self.counts = self.counts ** self.sample_dampening
-
-        if self.burnin:
-            # Setup the necessary data structures for "Alias Method"
-            # See Lua Torch impl: https://github.com/torch/torch7/blob/master/lib/TH/generic/THTensorRandom.c
-            # Alias method: https://en.wikipedia.org/wiki/Alias_method
-            S = (self.counts / np.sum(self.counts)) * self.counts.shape[0]
-            A = np.arange(0, self.counts.shape[0], dtype=np.long)
-            Tl = set(list((S < 1).nonzero()[0]))
-            Th = set(list((S > 1).nonzero()[0]))
-
-            while len(Tl) > 0 and len(Th) > 0:
-                j = Tl.pop()
-                k = Th.pop()
-                S[k] = S[k] - 1 + S[j]
-                A[j] = k
-                if S[k] < 1:
-                    Tl.add(k)
-                elif S[k] > 1:
-                    Th.add(k)
-            self.S = S
-            self.A = A
+    def refresh_manifold_nn(self, manifold_embedding, manifold):
+        manifold_nns = ManifoldNNS(manifold_embedding, manifold)
+        nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.num_workers)
+        for i in range(len(nns)):
+            self.manifold_neighbors[i] = nns[i][0][1:].astype(np.int64)
 
     def __iter__(self):
-        self.perm = np.random.permutation(len(self.idx))
+        self.perm = np.random.permutation(self.N)
+        for i in range(self.N):
+            graph_neighbors = self.graph_neighbors[i]
+            total_neighbors = min(graph_neighbors.shape[0], self.n_graph_neighbors)
+            self.graph_neighbor_permutations[i] = np.random.permutation(graph_neighbors)[:total_neighbors]
         self.current = 0
         self.threads = []
         for i in range(self.num_workers):
@@ -137,22 +112,19 @@ cdef class BatchedDataset:
         cdef long [:,:] memview
         cdef long count
 
-        while self.current < self.idx.shape[0]:
+        while self.current < self.N:
             current = self.current
             self.current += self.batch_size
-            ix = torch.LongTensor(self.batch_size, self.nnegatives() + 2)
+            ix = torch.LongTensor(self.batch_size, 1 + self.n_graph_neighbors + self.n_manifold_neighbors + self.n_rand_neighbors)
+            graph_dists = torch.zeros((self.batch_size, self.n_graph_neighbors + self.n_manifold_neighbors + self.n_rand_neighbors))
+            graph_dists += 2
             memview = ix.numpy()
-            with nogil:
-                count = self._getbatch(current, memview)
+            graph_memview = graph_dists.numpy()
+            count = self._getbatch(current, memview, graph_memview)
             if count < self.batch_size:
                 ix = ix.narrow(0, 0, count)
-            if self.sample_data == "targets":
-                self.queue.put((ix, torch.zeros(ix.size(0)).long()))
-            elif self.sample_data == "graph_dist":
-                graph_dists = torch.zeros((ix.size(0), ix.size(1) - 1))
-                graph_dists[:,0] = 1
-                graph_dists[:,1:] = 2
-                self.queue.put((ix, graph_dists))
+                graph_dists = graph_dists.narrow(0, 0, count)
+            self.queue.put((ix, graph_dists))
 
         self.queue.put(i)
 
@@ -160,7 +132,7 @@ cdef class BatchedDataset:
         return self.__iter__()
 
     def __len__(self):
-        return int(np.ceil(float(self.idx.shape[0]) / self.batch_size))
+        return int(np.ceil(float(self.N) / self.batch_size))
 
     def __next__(self):
         return self.next()
@@ -182,71 +154,72 @@ cdef class BatchedDataset:
             return self.next()  # try again...
         return item
 
-    cdef public long _getbatch(self, int i, long[:,:] ix) nogil:
+    cdef public long _getbatch(self, int i, long[:,:] vertices, float[:,:] graph_dists):
         '''
         Fast internal C method for indexing the dataset/negative sampling
         Args:
             i (int): Index into the dataset
-            ix (long [:]) - A C memoryview of the result tensor that we will
+            vertices (long [:,:]) - A C memoryview of the vertices tensor that we will
                 return to Python
-            N (int): Total number of unique objects in the dataset (convert to raw C)
+            graph_dists (float [:,:]) - A C memoryview of the graph_dists tensor that we will
+                return to Python
         '''
-        cdef long t, h, n, fu
-        cdef int ntries, ixptr, idx, j
-        cdef unordered_set[long] negs
-        cdef double weight_th, u
+        cdef int vertex, extra_rand_samples, total_graph_samples, new_vertex
+        cdef int j, k, l, current_index
+        cdef long[:] graph_neighbors
+        cdef unordered_set[long] excluded_samples
         cdef unsigned long seed
 
         seed = i
         j = 0
-
         while j < self.batch_size and i + j < self.perm.shape[0]:
             ntries = 0
 
-            idx = self.perm[i + j]
-            t = self.idx[idx, 0]
-            h = self.idx[idx, 1]
+            vertex = self.perm[i + j]
+            vertices[j, 0] = vertex
+            graph_neighbors = self.graph_neighbors[vertex]
+            k = 0
 
-            ix[j, 0] = t
-            ix[j, 1] = h
-            ixptr = 2
-
-            weight_th = self._weights[t][h]
-
-            negs = unordered_set[long]()
-
-            while ntries < self.max_tries and negs.size() < self._nnegatives():
-                if self.burnin:
-                    u = <double>rand_r(&seed) / <double>RAND_MAX * self.N
-                    fu = <int>u
-                    if self.S[fu] <= u - fu:
-                        n = self.A[fu]
-                    else:
-                        n = fu
-                else:
-                    n = <long>(<double>rand_r(&seed) / <double>RAND_MAX * self.N)
-                if n != t and (self._weights[t].find(n) == self._weights[t].end() or (self._weights[t][n] < weight_th)):
-                    if negs.find(n) == negs.end():
-                        ix[j, ixptr] = n
-                        ixptr = ixptr + 1
-                        negs.insert(n)
-                ntries = ntries + 1
-
-            if negs.size() == 0:
-                ix[j, ixptr] = t
-                ixptr = ixptr + 1
-
-            while ixptr < self._nnegatives() + 2:
-                ix[j, ixptr] = ix[j, 2 + <long>(<double>rand_r(&seed)/RAND_MAX*(ixptr-2))]
-                ixptr = ixptr + 1
+            # printf("graph_neighbors for vertex %d:", vertex)
+            # while k < graph_neighbors.shape[0]:
+            #     printf("%d, ", graph_neighbors[k])
+            #     k = k+1
+            # printf("\n")
+            extra_rand_samples = 0
+            if graph_neighbors.shape[0] < self.n_graph_neighbors:
+                extra_rand_samples = self.n_graph_neighbors - graph_neighbors.shape[0]
+            total_graph_samples = self.n_graph_neighbors - extra_rand_samples
+            excluded_samples = unordered_set[long]()
+            k = 0
+            while k < graph_neighbors.shape[0]:
+                excluded_samples.insert(graph_neighbors[k])
+                k = k + 1
+            k = 1
+            while k < 1+total_graph_samples:
+                vertices[j, k] = self.graph_neighbor_permutations[vertex][k - 1]
+                graph_dists[j,k - 1] = 1
+                k = k + 1
+            current_index = k
+            k = 0
+            l = 0
+            while k < self.n_manifold_neighbors and l < self.manifold_neighbors[vertex].shape[0]:
+                new_vertex = self.manifold_neighbors[vertex][l]
+                if excluded_samples.find(new_vertex) == excluded_samples.end():
+                    vertices[j, k + current_index] = new_vertex
+                    k = k + 1
+                    excluded_samples.insert(new_vertex)
+                l = l + 1
+            current_index = current_index + k
+            if k < self.n_manifold_neighbors:
+                extra_rand_samples = extra_rand_samples + self.n_manifold_neighbors - k
+            k = 0
+            while k < self.n_rand_neighbors + extra_rand_samples:
+                new_vertex = <long>(<double>rand_r(&seed) / <double>RAND_MAX * self.N)
+                if excluded_samples.find(new_vertex) == excluded_samples.end():
+                    vertices[j, k + current_index] = new_vertex
+                    k = k + 1
+                    excluded_samples.insert(new_vertex)
+                
             j = j + 1
         return j
 
-    def nnegatives(self):
-        return self._nnegatives()
-
-    cdef int _nnegatives(self) nogil:
-        if self.burnin:
-            return int(self.neg_multiplier * self.nnegs)
-        else:
-            return self.nnegs

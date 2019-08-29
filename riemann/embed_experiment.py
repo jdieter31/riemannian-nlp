@@ -72,8 +72,6 @@ def config():
         ]
     }
     sparse = True
-    burnin_num = 0
-    burnin_neg_multiplier = 0.1
     now = datetime.now()
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
@@ -84,7 +82,7 @@ def config():
     conformal_loss_params = {
         "weight": 1,
         "num_samples": 15,
-        "isometric": False,
+        "isometric": True,
         "random_samples": 15,
         "random_init": {
             'global': {
@@ -102,8 +100,6 @@ def embed(
         eval_every,
         gpu,
         train_threads,
-        burnin_num,
-        burnin_neg_multiplier,
         sparse,
         tensorboard_dir,
         embed_manifold_name,
@@ -113,18 +109,16 @@ def embed(
         conformal_loss_params,
         _log
         ):
-    data = load_dataset(burnin=burnin_num > 0)
-    if burnin_num > 0:
-        data.neg_multiplier = burnin_neg_multiplier
 
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
     torch.set_num_threads(1)
 
     logging_thread.initialize(tensorboard_dir, _log)
 
+    embed_manifold = RiemannianManifold.from_name_params(embed_manifold_name, embed_manifold_params)
+    data = load_dataset(embed_manifold)
     embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data))
 
-    embed_manifold = RiemannianManifold.from_name_params(embed_manifold_name, embed_manifold_params)
     model = gen_model(data, device, embed_manifold, embed_manifold_dim)
     if train_threads > 1:
         mp.set_sharing_strategy('file_system')
@@ -144,7 +138,7 @@ def embed(
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, i, feature_manifold, conformal_loss_params]
+                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, shared_params, i, feature_manifold, conformal_loss_params]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -160,7 +154,7 @@ def embed(
             logging_thread.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, burnin_num, shared_params, 0, feature_manifold, conformal_loss_params]
+        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, lr_scheduler, shared_params, 0, feature_manifold, conformal_loss_params]
         try:
             train(*args)
         finally:

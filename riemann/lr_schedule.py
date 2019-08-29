@@ -14,7 +14,7 @@ def config():
             lr_durations and remains constant at the last lr
     """
     schedule_type = "constant"
-    base_lr = 1
+    base_lr = 5
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 

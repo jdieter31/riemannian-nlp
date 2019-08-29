@@ -1,5 +1,5 @@
 import torch.multiprocessing as mp
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 log_queue = None
 process = None

@@ -14,7 +14,8 @@ class ManifoldLayer(nn.Module):
             out_dimension: int,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
-            ortho_init=True
+            ortho_init=True,
+            non_linear=False
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold
@@ -33,10 +34,15 @@ class ManifoldLayer(nn.Module):
         self.linear_layer = nn.Linear(in_dimension, out_dimension, bias=False)
         if ortho_init:
             orthogonal_(self.linear_layer.weight)
+        self.relu = None
+        if non_linear:
+            self.relu = nn.ReLU()
 
     def forward(self, x):
         log_x = self.in_manifold.log(self.log_base, x)
         linear_out = self.linear_layer(log_x)
+        if self.relu is not None:
+            linear_out = self.relu(linear_out)
         exp_out = self.out_manifold.exp(self.exp_base, linear_out)
         return exp_out
 
