@@ -13,7 +13,7 @@ def config():
     graph_data_format = "hdf5"
     symmetrize = False
     num_workers = 5
-    n_graph_neighbors = 25
+    n_graph_neighbors = 10
     n_manifold_neighbors = 40
     n_rand_neighbors = 10
     batch_size = 1000
