@@ -12,7 +12,7 @@ def config():
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
-    num_workers = 3
+    num_workers = 5
     n_graph_neighbors = 25
     n_manifold_neighbors = 40
     n_rand_neighbors = 10

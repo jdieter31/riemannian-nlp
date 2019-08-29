@@ -40,10 +40,13 @@ cdef class BatchedDataset:
     cdef int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers
     cdef object queue
     cdef object graph
-    cdef object[:] graph_neighbors
-    cdef object[:] manifold_neighbors
+    cdef long[:] graph_neighbors
+    cdef long[:] graph_neighbors_indices
+    cdef long[:] manifold_neighbors
+    cdef long[:] manifold_neighbors_indices
     cdef long[:] perm
-    cdef object[:] graph_neighbor_permutations
+    cdef long[:] graph_neighbor_permutations
+    cdef long[:] graph_neighbor_permutations_indices
     cdef list threads
 
     def __cinit__(self, idx, objects, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
@@ -82,24 +85,54 @@ cdef class BatchedDataset:
         self.graph.add_edge_list(idx)
         self.manifold_nn_k = manifold_nn_k
         self.num_workers = num_workers
-        self.manifold_neighbors = np.empty(self.N, dtype=object)
-        self.graph_neighbor_permutations = np.empty(self.N, dtype=object)
-        self.graph_neighbors = np.empty(self.N, dtype=object)
-        for i in range(self.N):
-            self.graph_neighbors[i] = self.graph.get_all_neighbors(i)
+        all_graph_neighbors = [self.graph.get_all_neighbors(i) for i in range(self.N)]
+        list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_graph_neighbors)
+        self.graph_neighbors = np.empty([list_size], dtype=np.int64)
+        self.graph_neighbors_indices = np.empty([index_size], dtype=np.int64)
+        self.numpy_list_to_1d_memview(all_graph_neighbors, self.graph_neighbors, self.graph_neighbors_indices)
+    
+    def get_init_size_1d_memview_numpy_list(self, numpy_list):
+        list_size = sum(array.shape[0] for array in numpy_list)
+        index_size = len(numpy_list) + 1
+        return list_size, index_size
+
+    cpdef numpy_list_to_1d_memview(self, numpy_list, long[:] memview, long[:] indices):
+        np.copyto(np.asarray(memview), np.concatenate(numpy_list))
+        cdef int current = 0
+        cdef int i = 0
+        while i < len(numpy_list):
+            indices[i] = current
+            current = current + numpy_list[i].shape[0]
+            i = i + 1
+        indices[i] = current
+
+    cdef long[:] access_1d_memview_list(self, int i, long[:] memview, long[:] indices) nogil:
+        return memview[indices[i]:indices[i+1]]
 
     def refresh_manifold_nn(self, manifold_embedding, manifold):
         manifold_nns = ManifoldNNS(manifold_embedding, manifold)
         nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.num_workers)
-        for i in range(len(nns)):
-            self.manifold_neighbors[i] = nns[i][0][1:].astype(np.int64)
+        all_manifold_neighbors = [nns[i][0][1:].astype(np.int64) for i in range(self.N)]
+        list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_manifold_neighbors)
+        self.manifold_neighbors = np.empty([list_size], dtype=np.int64)
+        self.manifold_neighbors_indices = np.empty([index_size], dtype=np.int64)
+        self.numpy_list_to_1d_memview(all_manifold_neighbors, self.manifold_neighbors, self.manifold_neighbors_indices)
+
+    cpdef initialize_graph_perms(self):
+        graph_neighbor_permutations = []
+        for i in range(self.N):
+            graph_neighbors = self.access_1d_memview_list(i, self.graph_neighbors, self.graph_neighbors_indices)
+            total_neighbors = min(graph_neighbors.shape[0], self.n_graph_neighbors)
+            graph_neighbor_permutations.append(np.random.permutation(graph_neighbors)[:total_neighbors])
+
+        list_size, index_size = self.get_init_size_1d_memview_numpy_list(graph_neighbor_permutations)
+        self.graph_neighbor_permutations = np.empty([list_size], dtype=np.int64)
+        self.graph_neighbor_permutations_indices = np.empty([index_size], dtype=np.int64)
+        self.numpy_list_to_1d_memview(graph_neighbor_permutations, self.graph_neighbor_permutations, self.graph_neighbor_permutations_indices)
 
     def __iter__(self):
         self.perm = np.random.permutation(self.N)
-        for i in range(self.N):
-            graph_neighbors = self.graph_neighbors[i]
-            total_neighbors = min(graph_neighbors.shape[0], self.n_graph_neighbors)
-            self.graph_neighbor_permutations[i] = np.random.permutation(graph_neighbors)[:total_neighbors]
+        self.initialize_graph_perms()
         self.current = 0
         self.threads = []
         for i in range(self.num_workers):
@@ -110,7 +143,9 @@ cdef class BatchedDataset:
 
     cpdef _worker(self, i):
         cdef long [:,:] memview
+        cdef float [:,:] graph_memview
         cdef long count
+        cdef int current
 
         while self.current < self.N:
             current = self.current
@@ -120,7 +155,8 @@ cdef class BatchedDataset:
             graph_dists += 2
             memview = ix.numpy()
             graph_memview = graph_dists.numpy()
-            count = self._getbatch(current, memview, graph_memview)
+            with nogil:
+                count = self._getbatch(current, memview, graph_memview)
             if count < self.batch_size:
                 ix = ix.narrow(0, 0, count)
                 graph_dists = graph_dists.narrow(0, 0, count)
@@ -154,7 +190,7 @@ cdef class BatchedDataset:
             return self.next()  # try again...
         return item
 
-    cdef public long _getbatch(self, int i, long[:,:] vertices, float[:,:] graph_dists):
+    cdef public long _getbatch(self, int i, long[:,:] vertices, float[:,:] graph_dists) nogil:
         '''
         Fast internal C method for indexing the dataset/negative sampling
         Args:
@@ -166,7 +202,7 @@ cdef class BatchedDataset:
         '''
         cdef int vertex, extra_rand_samples, total_graph_samples, new_vertex
         cdef int j, k, l, current_index
-        cdef long[:] graph_neighbors
+        cdef long[:] neighbors
         cdef unordered_set[long] excluded_samples
         cdef unsigned long seed
 
@@ -177,33 +213,30 @@ cdef class BatchedDataset:
 
             vertex = self.perm[i + j]
             vertices[j, 0] = vertex
-            graph_neighbors = self.graph_neighbors[vertex]
+            neighbors = self.access_1d_memview_list(vertex, self.graph_neighbors, self.graph_neighbors_indices)
             k = 0
 
-            # printf("graph_neighbors for vertex %d:", vertex)
-            # while k < graph_neighbors.shape[0]:
-            #     printf("%d, ", graph_neighbors[k])
-            #     k = k+1
-            # printf("\n")
             extra_rand_samples = 0
-            if graph_neighbors.shape[0] < self.n_graph_neighbors:
-                extra_rand_samples = self.n_graph_neighbors - graph_neighbors.shape[0]
+            if neighbors.shape[0] < self.n_graph_neighbors:
+                extra_rand_samples = self.n_graph_neighbors - neighbors.shape[0]
             total_graph_samples = self.n_graph_neighbors - extra_rand_samples
             excluded_samples = unordered_set[long]()
             k = 0
-            while k < graph_neighbors.shape[0]:
-                excluded_samples.insert(graph_neighbors[k])
+            while k < neighbors.shape[0]:
+                excluded_samples.insert(neighbors[k])
                 k = k + 1
+            neighbors = self.access_1d_memview_list(vertex, self.graph_neighbor_permutations, self.graph_neighbor_permutations_indices)
             k = 1
             while k < 1+total_graph_samples:
-                vertices[j, k] = self.graph_neighbor_permutations[vertex][k - 1]
+                vertices[j, k] = neighbors[k - 1]
                 graph_dists[j,k - 1] = 1
                 k = k + 1
             current_index = k
+            neighbors = self.access_1d_memview_list(vertex, self.manifold_neighbors, self.manifold_neighbors_indices)
             k = 0
             l = 0
-            while k < self.n_manifold_neighbors and l < self.manifold_neighbors[vertex].shape[0]:
-                new_vertex = self.manifold_neighbors[vertex][l]
+            while k < self.n_manifold_neighbors and l < neighbors.shape[0]:
+                new_vertex = neighbors[l]
                 if excluded_samples.find(new_vertex) == excluded_samples.end():
                     vertices[j, k + current_index] = new_vertex
                     k = k + 1
