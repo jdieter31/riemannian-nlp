@@ -50,7 +50,7 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 1000
-    eval_every = 10
+    eval_every = 4
     gpu = -1
     train_threads = 1
     embed_manifold_name = "ProductManifold"
@@ -76,23 +76,23 @@ def config():
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
     loss_params = {
-        "margin": 0.001,
+        "margin": 0.05,
         "discount_factor": 0.5
     }
     conformal_loss_params = {
-        "weight": 1,
-        "num_samples": 15,
+        "weight": 10,
+        "num_samples": 5,
         "isometric": True,
-        "random_samples": 15,
+        "random_samples": 20,
         "random_init": {
             'global': {
                 'init_func': 'normal_',
-                'params': [0, 0.01]
+                'params': [0, 1]
             }
         },
         "update_every": 1
     }
-    sample_neighbors_every = 10
+    sample_neighbors_every = 6
 
 
 @ex.command

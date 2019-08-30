@@ -67,7 +67,7 @@ cdef class BatchedDataset:
         print("Processing graph neighbors...")
         all_graph_neighbors = [self.graph.get_all_neighbors(i) for i in tqdm(range(self.N))]
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_graph_neighbors)
-        self.graph_neighbors = np.empty([list_size], dtype=np.int64)
+        self.graph_neighbors = np.concatenate(all_graph_neighbors)
         self.graph_neighbors_indices = np.empty([index_size], dtype=np.int64)
         self.numpy_list_to_1d_memview(all_graph_neighbors, self.graph_neighbors, self.graph_neighbors_indices)
     
@@ -77,7 +77,6 @@ cdef class BatchedDataset:
         return list_size, index_size
 
     cpdef numpy_list_to_1d_memview(self, numpy_list, long[:] memview, long[:] indices):
-        np.copyto(np.asarray(memview), np.concatenate(numpy_list))
         cdef int current = 0
         cdef int i = 0
         while i < len(numpy_list):
@@ -88,12 +87,15 @@ cdef class BatchedDataset:
 
     def refresh_manifold_nn(self, manifold_embedding, manifold):
         manifold_nns = ManifoldNNS(manifold_embedding, manifold)
+        print("\nQuerying near neighbors...")
         nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.num_workers)
+        print("Processing near neighbor data...")
         all_manifold_neighbors = [nns[i][0][1:].astype(np.int64) for i in range(self.N)]
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_manifold_neighbors)
-        self.manifold_neighbors = np.empty([list_size], dtype=np.int64)
+        self.manifold_neighbors = np.concatenate(all_manifold_neighbors)
         self.manifold_neighbors_indices = np.empty([index_size], dtype=np.int64)
         self.numpy_list_to_1d_memview(all_manifold_neighbors, self.manifold_neighbors, self.manifold_neighbors_indices)
+        print("Finished processing near neighbor data.")
 
     cpdef initialize_graph_perms(self):
         graph_neighbor_permutations = []

@@ -15,49 +15,6 @@ from manifold_initialization import initialize_manifold_tensor
 
 EPSILON = 1e-9
 
-def manifold_dist_loss(model: nn.Module, inputs: torch.Tensor,
-    targets: torch.Tensor, manifold: RiemannianManifold):
-    """
-    :param model: model that takes in graph indices and outputs embeddings
-    :param inputs: Tensor of shape [batch_size, 2 + number of negative examples]
-        Input to train on. The second dimension contains 2 + number of negative
-        examples as the first contains the word itself, followed by one positive
-        example and the rest of the negative examples
-    :param targets: Tensor of shape batch_size
-        Gves the index of where the positive example is in inputs out of
-        all of the negative examples trained on
-    :return: scalar
-    """
-    embeddings = model(inputs)
-    relations = embeddings.narrow(1, 1, embeddings.size(1) - 1)
-    word = embeddings.narrow(1, 0, 1).expand_as(relations)
-    dists = manifold.dist(word, relations)
-
-    # Minimize distance between words that are positive examples
-    return cross_entropy(-dists, targets)
-
-def manifold_dist_loss_kl(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold):
-    """ Gives a loss function defined by the KL divergence of the distribution given by the manifold distance verses the provide train_distances
-    Args:
-        model (nn.Module): model that takes in graph indices and ouptuts embeddings
-        inputs (torch.Tensor): LongTensor of shape [batch_size, num_samples+1] giving the indices of the vertices to be trained with the first vertex in each element of the batch being the main vertex and the others being samples
-        train_distances (torch.Tensor): floating point tensor of shape [batch_size, num_samples] containing the training distances from the input vertex to the sampled vertices
-        manifold (RiemannianManifold): Manifold that model embeds vertices into
-
-    Returns:
-        kl_div (scalar): KL Divergence of sampled distributions
-    """
-
-    input_embeddings = model(inputs)
-    sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
-    main_vertices = input_embeddings.narrow(1,0,1).expand_as(sample_vertices)
-    manifold_dists = manifold.dist(main_vertices, sample_vertices)
-    manifold_dists_log = (manifold_dists + 0.01).log()
-    manifold_dist_distrib = log_softmax(-manifold_dists, -1)
-    train_dists_log = (train_distances + 0.01).log()
-    train_distrib = softmax(-train_distances, -1)
-    return kl_div(manifold_dist_distrib, train_distrib, reduction="batchmean")
-
 def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold, margin=0.01, discount_factor=0.9):
     """ See write up for details on this loss function -- encourages embeddings to preserve graph topology
     Args:
@@ -103,7 +60,7 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     input_embeddings = model.input_embedding(input_embeddings)
     if random_samples > 0:
         random_samples = torch.empty(random_samples, input_embeddings.size()[1], dtype=input_embeddings.dtype, device=input_embeddings.device)
-        initialize_manifold_tensor(random_samples, RiemannianManifold.from_name_params("SphericalManifold", None), random_init)
+        initialize_manifold_tensor(random_samples, in_manifold, random_init)
         input_embeddings = torch.cat([input_embeddings, random_samples])
 
     model = model.embedding_model
@@ -200,7 +157,7 @@ class FeaturizedModelEmbedding(nn.Module):
 
 def get_canonical_glove_sentence_featurizer():
     embedder = GloveSentenceEmbedder.canonical()
-    return lambda sent : embedder.embed(SimpleSentence.from_text(sent)), embedder.dim
+    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l2_normalize=False), embedder.dim
 
 def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=torch.float, device=None, verbose=True):
     embeddings_list = np.empty((len(features), featurizer_dim))

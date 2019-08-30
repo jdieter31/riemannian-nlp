@@ -7,7 +7,7 @@ import timeit
 import numpy as np
 from tqdm import tqdm
 from logging_thread import write_tensorboard
-from graph_embedding_utils import manifold_dist_loss, manifold_dist_loss_kl, manifold_dist_loss_relu_sum, metric_loss
+from graph_embedding_utils import manifold_dist_loss_relu_sum, metric_loss
 from manifold_initialization import initialize_manifold_tensor
 
 def train(
@@ -35,7 +35,10 @@ def train(
             batch_conf_losses = []
         t_start = timeit.default_timer()
         if (epoch - 1) % sample_neighbors_every == 0 and thread_number == 0:
-            data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
+            with torch.no_grad():
+                model.to(torch.device("cpu"))
+                data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
+                model.to(device)
         data_iterator = tqdm(data) if thread_number == 0 else data
 
         for batch in data_iterator:

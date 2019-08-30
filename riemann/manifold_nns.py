@@ -11,7 +11,7 @@ class ManifoldNNS:
     def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=1000):
         perm = torch.randperm(data_points.size(0))
         idx = perm[:min(samples_for_pole, perm.size(0))]
-        self.pole = self.compute_pole(data_points[idx])
+        self.pole = compute_pole(data_points[idx], self.manifold)
         pole_batch = self.pole.unsqueeze(0).expand_as(data_points)
         self.data_embedding = self.manifold.log(pole_batch, data_points)
         self.index = nmslib.init(method="hnsw", space="l2")
@@ -19,13 +19,6 @@ class ManifoldNNS:
         print("Computing manifold nns index")
         self.index.createIndex({'post': 2}, print_progress=True)
 
-    def compute_pole(self, data_samples: torch.Tensor):
-        running_pole = data_samples[0].clone()
-        for i in range(data_samples.size()[0] - 1):
-            log_mu_x = self.manifold.log(running_pole, data_samples[i + 1])
-            weighted = log_mu_x / (i + 2)
-            running_pole = self.manifold.exp(running_pole, weighted)
-        return running_pole
         
     def knn_query_batch_vectors(self, data, k=10, num_threads=4, log_space=False):
         pole_batch = self.pole.unsqueeze(0).expand_as(data)
@@ -42,3 +35,27 @@ class ManifoldNNS:
         return self.knn_query_batch_indices(
             torch.arange(0, self.data_embedding.size()[0],
                         dtype=torch.long, device=self.data_embedding.device), k, num_threads)
+
+
+def compute_pole(data_samples: torch.Tensor, manifold: RiemannianManifold):
+    running_pole = data_samples[0].clone()
+    for i in range(data_samples.size()[0] - 1):
+        log_mu_x = manifold.log(running_pole, data_samples[i + 1])
+        weighted = log_mu_x / (i + 2)
+        running_pole = manifold.exp(running_pole, weighted)
+    return running_pole
+
+def compute_pole_batch(data: torch.Tensor, manifold: RiemannianManifold, samples_per_pole=1000, num_poles=15):
+    permuted_data = data.new_empty([num_poles, min(samples_per_pole, data.size(0)), data.size()[-1]])
+    for i in range(num_poles):
+        perm = torch.randperm(data.size(0))
+        idx = perm[:min(samples_per_pole, perm.size(0))]
+        permuted_data[i] = data[idx]
+    running_poles = permuted_data[:, 0, :].clone()
+    for i in range(permuted_data.size()[1] - 1):
+        log_mu_x = manifold.log(running_poles, permuted_data[:, i + 1, :])
+        weighted = log_mu_x / (i + 2)
+        running_poles = manifold.exp(running_poles, weighted)
+    return running_poles
+
+

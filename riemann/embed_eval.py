@@ -11,6 +11,8 @@ from embed_save import load_model
 from logging_thread import write_tensorboard, write_log
 from embedding_evaluation.process_benchmarks import process_benchmarks
 from graph_embedding_utils import get_canonical_glove_sentence_featurizer, FeaturizedModelEmbedding
+from manifold_nns import compute_pole_batch
+from torch.nn.functional import cosine_similarity
 
 from scipy import stats
 
@@ -49,7 +51,7 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
         manifold = save_data["manifold"]
         if "features" in save_data:
             if featurizer is None:
-                featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
+                featurizer, featurizer_dim = get_canonical_glove_sentence_featurizer()
             if graph_embedding_model is None:
                 graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], featurizer=featurizer, featurizer_dim=featurizer_dim)
             else:
@@ -57,7 +59,8 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
         else:
             graph_embedding_model = model
 
-        embeddings = graph_embedding_model.get_embedding_matrix()
+        with torch.no_grad():
+            embeddings = graph_embedding_model.get_embedding_matrix()
         write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
 
         meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
@@ -72,10 +75,13 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         if featurizer is not None:
             benchmark_results = {}
+            poles = compute_pole_batch(embeddings, manifold)
+
             for benchmark in benchmarks_to_eval:
                 featurize = lambda w: embeddings.new_tensor(featurizer(w))
-                dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
-                rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func) 
+                dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
+                with torch.no_grad():
+                    rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func)
                 benchmark_results[f"{benchmark}_rho"] = rho
                 write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, epoch])
             
@@ -85,6 +91,16 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
         write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
 
         write_log(f"Stats: {json.dumps(lmsg)}")
+
+
+def pole_log_cosine_sim(w1, w2, manifold, poles):
+    w1 = w1.unsqueeze(1).expand(w1.size(0), poles.size(0), w1.size(-1))
+    w2 = w2.unsqueeze(1).expand_as(w1)
+    poles = poles.unsqueeze(0).expand_as(w1)
+    log_w1 = manifold.log(poles, w1)
+    log_w2 = manifold.log(poles, w2)
+    cosine_sim = cosine_similarity(log_w1, log_w2, dim=-1)
+    return cosine_sim.mean(-1)
 
 def eval_benchmark(benchmark, dist_func):
     gold_list = []
