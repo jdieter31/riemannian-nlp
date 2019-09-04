@@ -16,8 +16,8 @@ def config():
     n_graph_neighbors = 20
     n_manifold_neighbors = 40
     n_rand_neighbors = 10
-    batch_size = 1000
-    manifold_nn_k = 60
+    batch_size = 700
+    manifold_nn_k = 70
 
     # placental_mammal.n.01 -> placental mammal
     object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))

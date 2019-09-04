@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
-from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_, mse_loss, cosine_similarity
+from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_, mse_loss, cosine_similarity, relu
 from manifolds import RiemannianManifold
 from manifold_tensors import ManifoldParameter
 from typing import Dict, List
@@ -12,6 +12,7 @@ from embed_save import Savable
 from jacobian import compute_jacobian
 import numpy as np
 from manifold_initialization import initialize_manifold_tensor
+from torch.autograd import Function
 
 EPSILON = 1e-9
 
@@ -64,7 +65,8 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
         input_embeddings = torch.cat([input_embeddings, random_samples])
 
     model = model.embedding_model
-    jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
+    with torch.autograd.detect_anomaly():
+        jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
     jacobian_shape = jacobian.size()
@@ -85,12 +87,40 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     in_metric_flattened = in_metric_batch.view(in_metric_batch.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
+    '''
+    with torch.no_grad():
+        offset = closest_pd_matrix(pullback_metric) - pullback_metric
+    
+    '''
 
+    #loss = log_det_divergence(in_metric, closest_pd_matrix(pullback_metric)).mean()
     loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
 
+    '''
     if isometric:
-        loss += ((pullback_flattened.norm(dim=-1) + 1).log() - (in_metric_flattened.norm(dim=-1) + 1).log()).abs().mean()
+        loss += ((pullback_flattened.norm(dim=-1)).log() - (in_metric_flattened.norm(dim=-1)).log()).abs().mean()
+        # iso_        # return iso_loss
+    '''
+
+    #loss = pullback_flattened.size()[-1] * mse_loss(pullback_flattened, in_metric_flattened)
+
     return loss
+
+def closest_pd_matrix(matrix: torch.Tensor):
+    eigenvalues, vectors = torch.symeig(matrix, eigenvectors=True)
+    eigenvalues = relu(eigenvalues)
+    diag_vals = torch.diag_embed(eigenvalues, offset=0, dim1=-2, dim2=-1)
+    nearest_psd = torch.bmm(torch.bmm(vectors, diag_vals), vectors.transpose(-1, -2))
+    offset = 1e-5 * torch.eye(nearest_psd.size()[-1], device=nearest_psd.device, dtype=nearest_psd.dtype).unsqueeze(0).expand_as(nearest_psd)
+    return nearest_psd + offset
+
+def log_det_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
+    ab_product = torch.bmm(matrix_a, matrix_b)
+    ab_sum = (matrix_a + matrix_b) / 2
+    logdet_sum = torch.logdet(ab_sum)
+    logdet_product = (torch.logdet(ab_product) / 2)
+    divergence = logdet_sum - logdet_product
+    return divergence
 
 class ManifoldEmbedding(Embedding, Savable):
 
@@ -132,7 +162,7 @@ class ManifoldEmbedding(Embedding, Savable):
         return self
 
 class FeaturizedModelEmbedding(nn.Module):
-    def __init__(self, embedding_model: nn.Module, features_list, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None):
+    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None):
         super(FeaturizedModelEmbedding, self).__init__()
         self.embedding_model = embedding_model
         if featurizer is None:
@@ -140,6 +170,7 @@ class FeaturizedModelEmbedding(nn.Module):
         self.featurizer = featurizer
         self.featurizer_dim = featurizer_dim
         self.input_embedding = get_featurized_embedding(features_list, featurizer, featurizer_dim, dtype=dtype, device=device)
+        in_manifold.proj_(self.input_embedding.weight)
 
     def forward(self, x):
         return self.embedding_model(self.input_embedding(x))

@@ -35,10 +35,14 @@ class SphericalManifold(RiemannianManifold):
         if indices is not None:
             norm = x[indices].norm(dim=-1, keepdim=True)
             x_proj = x.clone()
-            x_proj[indices] /= norm
+            with torch.no_grad():
+                x_proj[indices] /= norm
         else:
             norm = x.norm(dim=-1, keepdim=True)
-            return x / norm
+            with torch.no_grad():
+                out = x / norm
+            out[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1/2)
+            return out
 
     def proj_(self, x, indices=None):
         if indices is not None:
@@ -47,7 +51,9 @@ class SphericalManifold(RiemannianManifold):
             return x
         else:
             norm = x.norm(dim=-1, keepdim=True)
-            return x.div_(norm)
+            x.div_(norm)
+            x[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1/2)
+            return x
 
     def retr(self, x, u, indices=None):
         if indices is not None:
@@ -66,7 +72,7 @@ class SphericalManifold(RiemannianManifold):
     def exp(self, x, u):
         norm_u = u.norm(dim=-1, keepdim=True)
         
-        exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
+        exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u 
         retr = self.proj(x + u)
         cond = norm_u > EPSILON
         return torch.where(cond, exp, retr)
@@ -76,7 +82,7 @@ class SphericalManifold(RiemannianManifold):
         u = u - (x * u).sum(dim=-1, keepdim=True) * x
         dist = self.dist(x, y, keepdim=True)
         norm_u = u.norm(dim=-1, keepdim=True)
-        cond = norm_u > EPSILON
+        cond = dist > EPSILON
         return torch.where(cond, u * dist / norm_u, u)
 
     def dist(self, x, y, keepdim=False):

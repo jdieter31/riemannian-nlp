@@ -49,11 +49,12 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         objects = save_data["objects"]
         manifold = save_data["manifold"]
+        in_manifold = save_data["in_manifold"]
         if "features" in save_data:
             if featurizer is None:
                 featurizer, featurizer_dim = get_canonical_glove_sentence_featurizer()
             if graph_embedding_model is None:
-                graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], featurizer=featurizer, featurizer_dim=featurizer_dim)
+                graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], in_manifold, featurizer=featurizer, featurizer_dim=featurizer_dim)
             else:
                 graph_embedding_model.embedding_model = model
         else:
@@ -75,11 +76,12 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         if featurizer is not None:
             benchmark_results = {}
-            poles = compute_pole_batch(embeddings, manifold)
+            #poles = compute_pole_batch(embeddings, manifold)
 
             for benchmark in benchmarks_to_eval:
-                featurize = lambda w: embeddings.new_tensor(featurizer(w))
-                dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
+                featurize = lambda w: in_manifold.proj(embeddings.new_tensor(featurizer(w)))
+                #dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
+                dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
                 with torch.no_grad():
                     rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func)
                 benchmark_results[f"{benchmark}_rho"] = rho

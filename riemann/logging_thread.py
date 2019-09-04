@@ -26,6 +26,7 @@ def async_log(tensorboard_dir, log):
         if temp[0] == "tensorboard":
             function, args = temp[1:]
             getattr(tensorboard_writer, function)(*args)
+            tensorboard_writer._get_file_writer().flush()
         elif temp[0] == "log":
             log.info(temp[1])
 

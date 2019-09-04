@@ -49,11 +49,11 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 1000
-    eval_every = 4
-    gpu = -1
+    n_epochs = 10000
+    eval_every = 100
+    gpu = 0
     train_threads = 1
-    embed_manifold_name = "ProductManifold"
+    embed_manifold_name = "SphericalManifold"
     embed_manifold_dim = 600
     embed_manifold_params = {
        "submanifolds": [
@@ -80,10 +80,10 @@ def config():
         "discount_factor": 0.5
     }
     conformal_loss_params = {
-        "weight": 10,
-        "num_samples": 5,
-        "isometric": True,
-        "random_samples": 20,
+        "weight": 0.1,
+        "num_samples": 3,
+        "isometric": False,
+        "random_samples": 3,
         "random_init": {
             'global': {
                 'init_func': 'normal_',
@@ -92,7 +92,7 @@ def config():
         },
         "update_every": 1
     }
-    sample_neighbors_every = 6
+    sample_neighbors_every = 5
 
 
 @ex.command
@@ -126,13 +126,14 @@ def embed(
         mp.set_sharing_strategy('file_system')
         model = model.share_memory()
 
+    feature_manifold = RiemannianManifold.from_name_params("SphericalManifold", None)
+
     shared_params = {
         "manifold": embed_manifold,
-        "objects": data.objects
+        "objects": data.objects,
+        "in_manifold": feature_manifold
     }
-
-    feature_manifold = RiemannianManifold.from_name_params("EuclideanManifold", None)
-
+    
     optimizer = RiemannianSGD(model.parameters(), lr=get_base_lr())
     lr_scheduler = get_lr_scheduler(optimizer)
     

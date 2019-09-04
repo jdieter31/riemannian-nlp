@@ -1,6 +1,6 @@
 from sacred import Ingredient
 from graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer
-from manifolds import RiemannianManifold, EuclideanManifold
+from manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold
 from manifold_initialization import *
 from neural import ManifoldLayer, ManifoldNetwork
 import random
@@ -25,14 +25,36 @@ def config():
                 "submanifolds": [
                     {
                         "name": "PoincareBall",
-                        "dimension": 200
+                        "dimension": 50
                     },
-
+                    {
+                        "name": "PoincareBall",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "PoincareBall",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "PoincareBall",
+                        "dimension": 50
+                    },
                     {
                         "name": "SphericalManifold",
-                        "dimension": 200
+                        "dimension": 50
                     },
-
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
                     {
                         "name": "EuclideanManifold",
                         "dimension": 200
@@ -46,21 +68,43 @@ def config():
                 "submanifolds": [
                     {
                         "name": "PoincareBall",
-                        "dimension": 200
+                        "dimension": 50
                     },
-
-                    {
-                        "name": "EuclideanManifold",
-                        "dimension": 200
-                    },
-
                     {
                         "name": "PoincareBall",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "PoincareBall",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "PoincareBall",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "SphericalManifold",
+                        "dimension": 50
+                    },
+                    {
+                        "name": "EuclideanManifold",
                         "dimension": 200
                     }
                 ]
             }
-        }
+        },
     ]
     intermediate_dims = [600, 600]
     sparse = True
@@ -86,11 +130,11 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
     elif model_type == "featurized_model_manifold_logistic":
         features = data.features
         featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
-        in_manifold = EuclideanManifold()
+        in_manifold = SphericalManifold()
         log_base_init = get_initialized_manifold_tensor(device, torch_dtype, featurize_dim, in_manifold, manifold_initialization, requires_grad=True)
         exp_base_init = get_initialized_manifold_tensor(device, torch_dtype, manifold_out_dim, manifold_out, manifold_initialization, requires_grad=True)
         featurized_model = ManifoldLayer(in_manifold, manifold_out, featurize_dim, manifold_out_dim, log_base_init, exp_base_init)
-        model = FeaturizedModelEmbedding(featurized_model, features)
+        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold)
     elif model_type == "featurized_model_manifold_network":
         features = data.features
         featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
@@ -110,7 +154,7 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
         dimension_seq.append(manifold_out_dim)
         manifold_seq.append(manifold_out)
         featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, log_base_inits, exp_base_inits)
-        model = FeaturizedModelEmbedding(featurized_model, features)
+        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold)
     else:
         raise Exception("Improper model configuration")
     model = model.to(device)
