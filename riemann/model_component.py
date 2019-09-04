@@ -25,35 +25,11 @@ def config():
                 "submanifolds": [
                     {
                         "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
+                        "dimension": 200
                     },
                     {
                         "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
+                        "dimension": 200
                     },
                     {
                         "name": "EuclideanManifold",
@@ -61,52 +37,9 @@ def config():
                     }
                 ]
             }
-        },
-        {
-            "name": "ProductManifold",
-            "params": {
-                "submanifolds": [
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 50
-                    },
-                    {
-                        "name": "EuclideanManifold",
-                        "dimension": 200
-                    }
-                ]
-            }
-        },
+        }
     ]
-    intermediate_dims = [600, 600]
+    intermediate_dims = [600]
     sparse = True
     double_precision = False
     manifold_initialization = {
@@ -138,7 +71,7 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
     elif model_type == "featurized_model_manifold_network":
         features = data.features
         featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
-        in_manifold = EuclideanManifold()
+        in_manifold = SphericalManifold()
         log_base_inits = []
         log_base_inits.append(get_initialized_manifold_tensor(device, torch_dtype, featurize_dim, in_manifold, manifold_initialization, requires_grad=True))
         exp_base_inits = []

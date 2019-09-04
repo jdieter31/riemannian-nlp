@@ -14,7 +14,7 @@ class ManifoldLayer(nn.Module):
             out_dimension: int,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
-            ortho_init=True,
+            ortho_init=False,
             non_linear=False
             ):
         super(ManifoldLayer, self).__init__()
@@ -35,7 +35,8 @@ class ManifoldLayer(nn.Module):
         if ortho_init:
             orthogonal_(self.linear_layer.weight)
             with torch.no_grad():
-                self.linear_layer.weight /= torch.sqrt(self.linear_layer.weight.new_tensor(in_dimension))
+                pass
+                #self.linear_layer.weight /= torch.sqrt(self.linear_layer.weight.new_tensor(in_dimension))
         self.relu = None
         if non_linear:
             self.relu = nn.ReLU()

@@ -71,7 +71,7 @@ class SphericalManifold(RiemannianManifold):
 
     def exp(self, x, u):
         norm_u = u.norm(dim=-1, keepdim=True)
-        
+        print(norm_u) 
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u 
         retr = self.proj(x + u)
         cond = norm_u > EPSILON

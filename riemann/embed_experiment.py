@@ -50,10 +50,10 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 10000
-    eval_every = 100
-    gpu = 0
+    eval_every = 10
+    gpu = -1
     train_threads = 1
-    embed_manifold_name = "SphericalManifold"
+    embed_manifold_name = "ProductManifold"
     embed_manifold_dim = 600
     embed_manifold_params = {
        "submanifolds": [
