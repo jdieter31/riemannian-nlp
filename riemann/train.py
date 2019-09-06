@@ -58,7 +58,7 @@ def train(
                         random_init=conformal_loss_params["random_init"])
 
             if conformal_loss_params is not None and conf_loss is not None:
-                total_loss = loss + conformal_loss_params["weight"] * conf_loss #loss + conformal_loss_params["weight"] * conf_loss
+                total_loss = loss + conformal_loss_params["weight"] * conf_loss
                 total_loss.backward()
             else:
                 loss.backward()

@@ -65,17 +65,21 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
         input_embeddings = torch.cat([input_embeddings, random_samples])
 
     model = model.embedding_model
-    with torch.autograd.detect_anomaly():
-        jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
+    jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
+    jacobian = jacobian.clamp(-1, 1)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
-    tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
     jacobian_shape = jacobian.size()
     tangent_proj_out_shape = tangent_proj_out.size()
-    tangent_proj_in_shape = tangent_proj_in.size()
-    tangent_proj_in_batch = tangent_proj_in.view(-1, tangent_proj_in_shape[-2], tangent_proj_in_shape[-1])
     tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2], tangent_proj_out_shape[-1])
     jacobian_batch = jacobian.view(-1, jacobian_shape[-2], jacobian_shape[-1])
-    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch), tangent_proj_in_batch)
+
+    tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
+    proj_eigenval, proj_eigenvec = torch.symeig(tangent_proj_in, eigenvectors=True)
+    first_nonzero = (proj_eigenval > 1e-3).nonzero()[0][1]
+    significant_eigenvec = proj_eigenvec.narrow(-1, first_nonzero, proj_eigenvec.size()[-1] - first_nonzero)
+    significant_eigenvec_shape = significant_eigenvec.size()
+    significant_eigenvec_batch = significant_eigenvec.view(-1, significant_eigenvec_shape[-2], significant_eigenvec_shape[-1])
+    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch), significant_eigenvec_batch)
     metric_conjugator_t = torch.transpose(metric_conjugator, -2, -1)
     out_metric = out_manifold.get_metric_tensor(model_out)
     out_metric_shape = out_metric.size()
@@ -84,35 +88,37 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     in_metric = in_manifold.get_metric_tensor(input_embeddings)
     in_metric_shape = in_metric.size()
     in_metric_batch = in_metric.view(-1, in_metric_shape[-2], in_metric_shape[-1])
-    in_metric_flattened = in_metric_batch.view(in_metric_batch.size()[0], -1)
+    sig_eig_t = torch.transpose(significant_eigenvec_batch, -2, -1)
+    in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
+    in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
-    '''
-    with torch.no_grad():
-        offset = closest_pd_matrix(pullback_metric) - pullback_metric
-    
-    '''
-
-    #loss = log_det_divergence(in_metric, closest_pd_matrix(pullback_metric)).mean()
-    loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
-
-    '''
     if isometric:
-        loss += ((pullback_flattened.norm(dim=-1)).log() - (in_metric_flattened.norm(dim=-1)).log()).abs().mean()
-        # iso_        # return iso_loss
-    '''
-
-    #loss = pullback_flattened.size()[-1] * mse_loss(pullback_flattened, in_metric_flattened)
+        loss = riemannian_divergence(in_metric_reduced, pullback_metric).mean()
+        #loss = log_det_divergence(in_metric_reduced, pullback_metric).mean()
+    else:
+        loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
 
     return loss
+
+def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
+    matrix_a_inv = torch.inverse(matrix_a)
+    ainvb = torch.bmm(matrix_a_inv, matrix_b)
+    eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
+    eigenvalues_positive = torch.clamp(eigenvalues, min=1e-5) 
+    log_eig = torch.log(eigenvalues_positive)
+    return log_eig.norm(dim=-1) ** 2
 
 def closest_pd_matrix(matrix: torch.Tensor):
     eigenvalues, vectors = torch.symeig(matrix, eigenvectors=True)
     eigenvalues = relu(eigenvalues)
     diag_vals = torch.diag_embed(eigenvalues, offset=0, dim1=-2, dim2=-1)
     nearest_psd = torch.bmm(torch.bmm(vectors, diag_vals), vectors.transpose(-1, -2))
-    offset = 1e-5 * torch.eye(nearest_psd.size()[-1], device=nearest_psd.device, dtype=nearest_psd.dtype).unsqueeze(0).expand_as(nearest_psd)
-    return nearest_psd + offset
+    if eigenvalues.min() < 1e-3:
+        offset = 1e-3 * torch.eye(nearest_psd.size()[-1], device=nearest_psd.device, dtype=nearest_psd.dtype).unsqueeze(0).expand_as(nearest_psd)
+        return nearest_psd + offset
+    else:
+        return nearest_psd
 
 def log_det_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     ab_product = torch.bmm(matrix_a, matrix_b)

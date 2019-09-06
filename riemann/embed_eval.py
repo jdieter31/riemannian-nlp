@@ -62,16 +62,16 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         with torch.no_grad():
             embeddings = graph_embedding_model.get_embedding_matrix()
-        write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
+        # write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
 
-        meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
+        # meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
 
         lmsg = {
             'epoch': epoch,
             'elapsed': elapsed,
             'loss': loss,
-            'mean_rank': meanrank,
-            'map_rank': maprank
+            # 'mean_rank': meanrank,
+            # 'map_rank': maprank
         }
 
         if featurizer is not None:
@@ -89,8 +89,8 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
             
             lmsg.update(benchmark_results)
 
-        write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-        write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
+        # write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
+        # write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
 
         write_log(f"Stats: {json.dumps(lmsg)}")
 

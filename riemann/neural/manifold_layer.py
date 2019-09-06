@@ -12,10 +12,10 @@ class ManifoldLayer(nn.Module):
             out_manifold: RiemannianManifold,
             in_dimension: int,
             out_dimension: int,
+            non_linearity=None,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
             ortho_init=False,
-            non_linear=False
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold
@@ -34,24 +34,27 @@ class ManifoldLayer(nn.Module):
         self.linear_layer = nn.Linear(in_dimension, out_dimension, bias=False)
         if ortho_init:
             orthogonal_(self.linear_layer.weight)
-            with torch.no_grad():
-                pass
-                #self.linear_layer.weight /= torch.sqrt(self.linear_layer.weight.new_tensor(in_dimension))
-        self.relu = None
-        if non_linear:
-            self.relu = nn.ReLU()
+        self.non_linearity = None
+        self.non_linearity_name = non_linearity
+        if non_linearity is not None:
+            if non_linearity == "relu":
+                self.non_linearity = nn.ReLU()
+            elif non_linearity == "tanh":
+                self.non_linearity = nn.Tanh()
+            elif non_linearity == "tanhshrink":
+                self.non_linearity = nn.Tanhshrink()
 
     def forward(self, x):
         log_x = self.in_manifold.log(self.log_base, x)
         linear_out = self.linear_layer(log_x)
-        if self.relu is not None:
-            linear_out = self.relu(linear_out)
+        if self.non_linearity is not None:
+            linear_out = self.non_linearity(linear_out)
         exp_out = self.out_manifold.exp(self.exp_base, linear_out)
         return exp_out
 
     def get_save_data(self):
         return {
-            'params': [self.in_manifold, self.out_manifold, self.in_dimension, self.out_dimension],
+            'params': [self.in_manifold, self.out_manifold, self.in_dimension, self.out_dimension, self.non_linearity_name],
             'state_dict': self.state_dict()
         }
 

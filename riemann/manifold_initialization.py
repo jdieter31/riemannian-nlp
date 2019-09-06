@@ -18,7 +18,8 @@ init_func can be any funciton from torch.nn.init and params are the respective p
 
 def get_initialized_manifold_tensor(device, dtype, shape, manifold, initializations, requires_grad, project=True):
     tensor = torch.empty(shape, dtype=dtype, device=device, requires_grad=requires_grad)
-    initialize_manifold_tensor(tensor, manifold, initializations, project)
+    with torch.no_grad():
+        initialize_manifold_tensor(tensor, manifold, initializations, project)
     return tensor
     
 def initialize_manifold_tensor(tensor, manifold, initializations, project=True):
@@ -41,7 +42,7 @@ def initialize_manifold_tensor(tensor, manifold, initializations, project=True):
             init_func_params = initialization["params"]
         args = [tensor] + init_func_params
         init_func(*args)
-        if False:
+        if project:
             manifold.proj_(tensor)
 
             

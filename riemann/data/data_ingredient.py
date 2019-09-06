@@ -8,7 +8,7 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/mammals.csv"
+    path = "data/concept_net.csv"
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
@@ -20,8 +20,8 @@ def config():
     manifold_nn_k = 70
 
     # placental_mammal.n.01 -> placental mammal
-    object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    # object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
+    # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
+    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
 
 
 @data_ingredient.capture
