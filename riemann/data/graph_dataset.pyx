@@ -111,7 +111,8 @@ cdef class BatchedDataset:
         for i in range(max_dif):
             graph_neighbor_permutations.append(np.random.permutation(i + 1 + self.n_graph_neighbors)[:self.n_graph_neighbors])
 
-        self.graph_neighbor_permutations = np.stack(graph_neighbor_permutations)
+        if len(graph_neighbor_permutations) > 0:
+            self.graph_neighbor_permutations = np.stack(graph_neighbor_permutations)
 
     def __iter__(self):
         self.perm = np.random.permutation(self.N)

@@ -49,11 +49,13 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     masked_diff_matrix = torch.where(diff_matrix_train == 0, diff_matrix_train, diff_matrix)
     masked_diff_matrix.triu_()
     relu_(masked_diff_matrix)
-    masked_diff_matrix = masked_diff_matrix.mean(-1)
+    masked_diff_matrix = masked_diff_matrix.sum(-1)
+    '''
     order_scale = torch.arange(0, masked_diff_matrix.size()[1], device=masked_diff_matrix.device, dtype=masked_diff_matrix.dtype)
     order_scale = (torch.ones_like(order_scale) * discount_factor).pow(order_scale)
     order_scale = order_scale.unsqueeze_(0).expand_as(masked_diff_matrix) 
     masked_diff_matrix *= order_scale
+    '''
     loss = masked_diff_matrix.sum(-1).mean()
     return loss
 
@@ -102,7 +104,10 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     return loss
 
 def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
+    print(matrix_a)
     matrix_a_inv = torch.inverse(matrix_a)
+    print(matrix_a_inv)
+    print(matrix_b)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
     eigenvalues_positive = torch.clamp(eigenvalues, min=1e-5) 

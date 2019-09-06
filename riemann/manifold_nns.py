@@ -8,7 +8,9 @@ class ManifoldNNS:
         self.manifold = manifold
         self.compute_index(data_points, samples_for_pole)
 
-    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=1000):
+    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=0):
+        if samples_for_pole == 0:
+            samples_for_pole = data_points.size(0)
         perm = torch.randperm(data_points.size(0))
         idx = perm[:min(samples_for_pole, perm.size(0))]
         self.pole = compute_pole(data_points[idx], self.manifold)
