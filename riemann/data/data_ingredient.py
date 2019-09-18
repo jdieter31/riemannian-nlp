@@ -12,12 +12,12 @@ def config():
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
-    num_workers = 20
-    n_graph_neighbors = 3
-    n_manifold_neighbors = 50
-    n_rand_neighbors = 25
-    batch_size = 300
-    manifold_nn_k = 80
+    num_workers = 5
+    n_graph_neighbors = 20
+    n_manifold_neighbors = 40
+    n_rand_neighbors = 10
+    batch_size = 500
+    manifold_nn_k = 70
 
     # placental_mammal.n.01 -> placental mammal
     object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))

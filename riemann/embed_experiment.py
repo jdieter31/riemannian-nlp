@@ -8,13 +8,14 @@ from sacred import Experiment
 from sacred.observers import FileStorageObserver
 
 from data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
-from embed_save import save_ingredient
+from embed_save import save_ingredient, load_model
 from embed_eval import eval_ingredient
 import embed_eval
 from model_component import model_ingredient, gen_model
 from train import train
 import logging_thread
 from rsgd_multithread import RiemannianSGD
+from graph_embedding_utils import FeaturizedModelEmbedding
 
 from lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr
 from torch.distributions import uniform
@@ -93,7 +94,7 @@ def config():
         "update_every": 1
     }
     sample_neighbors_every = 5
-
+    resume_training = False
 
 @ex.command
 def embed(
@@ -109,6 +110,7 @@ def embed(
         loss_params,
         conformal_loss_params,
         sample_neighbors_every,
+        resume_training,
         _log
         ):
 
@@ -120,8 +122,14 @@ def embed(
     embed_manifold = RiemannianManifold.from_name_params(embed_manifold_name, embed_manifold_params)
     data = load_dataset(embed_manifold)
     embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data))
-
-    model = gen_model(data, device, embed_manifold, embed_manifold_dim)
+    if resume_training:
+        model, save_data = load_model()
+        model.to(device)
+        if "features" in save_data:
+            model = FeaturizedModelEmbedding(model, data.features, save_data["in_manifold"])
+    else:
+        model = gen_model(data, device, embed_manifold, embed_manifold_dim)
+        
     if train_threads > 1:
         mp.set_sharing_strategy('file_system')
         model = model.share_memory()
