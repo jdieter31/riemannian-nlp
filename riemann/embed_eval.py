@@ -10,7 +10,7 @@ from embed_save import load_model
 
 from logging_thread import write_tensorboard, write_log
 from embedding_evaluation.process_benchmarks import process_benchmarks
-from graph_embedding_utils import get_canonical_glove_sentence_featurizer, FeaturizedModelEmbedding
+from graph_embedding_utils import get_canonical_glove_word_featurizer, FeaturizedModelEmbedding
 from manifold_nns import compute_pole_batch
 from torch.nn.functional import cosine_similarity
 
@@ -21,7 +21,7 @@ eval_ingredient = Ingredient('evaluation')
 eval_queue = None
 process = None
 
-def async_eval(adj, benchmarks_to_eval, num_workers):
+def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_projector):
     global eval_queue
     if eval_queue is None:
         return
@@ -49,37 +49,46 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
 
         objects = save_data["objects"]
         manifold = save_data["manifold"]
+        dimension = save_data["dimension"]
         in_manifold = save_data["in_manifold"]
         if "features" in save_data:
             if featurizer is None:
-                featurizer, featurizer_dim = get_canonical_glove_sentence_featurizer()
+                featurizer, featurizer_dim = get_canonical_glove_word_featurizer()
             if graph_embedding_model is None:
-                graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], in_manifold, featurizer=featurizer, featurizer_dim=featurizer_dim)
+                graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], in_manifold, manifold, dimension, featurizer=featurizer, featurizer_dim=featurizer_dim)
+                if "additional_embeddings_state_dict" in save_data:
+                    graph_embedding_model.get_additional_embeddings().load_state_dict(save_data["additional_embeddings_state_dict"])
             else:
                 graph_embedding_model.embedding_model = model
         else:
             graph_embedding_model = model
+        if eval_mean_rank or tboard_projector:
+            with torch.no_grad():
+                embeddings = graph_embedding_model.get_embedding_matrix()
+        if tboard_projector:
+            write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
 
-        with torch.no_grad():
-            embeddings = graph_embedding_model.get_embedding_matrix()
-        write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
-
-        meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
 
         lmsg = {
             'epoch': epoch,
             'elapsed': elapsed,
             'loss': loss,
-            'mean_rank': meanrank,
-            'map_rank': maprank
         }
+        
+
+        if eval_mean_rank:
+            meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
+            lmsg.update({
+                'mean_rank': meanrank,
+                'map_rank': maprank
+            })
 
         if featurizer is not None:
             benchmark_results = {}
             #poles = compute_pole_batch(embeddings, manifold)
 
             for benchmark in benchmarks_to_eval:
-                featurize = lambda w: in_manifold.proj(embeddings.new_tensor(featurizer(w)))
+                featurize = lambda w: in_manifold.proj(torch.FloatTensor(featurizer(w))) if featurizer(w) is not None else in_manifold.proj(torch.zeros(embeddings.size(-1)))
                 #dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
                 dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
                 with torch.no_grad():
@@ -89,8 +98,9 @@ def async_eval(adj, benchmarks_to_eval, num_workers):
             
             lmsg.update(benchmark_results)
 
-        write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-        write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
+        if eval_mean_rank:
+            write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
+            write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
 
         write_log(f"Stats: {json.dumps(lmsg)}")
 
@@ -129,13 +139,15 @@ def eval_benchmark_batch(benchmark, featurizer, dist_func):
 def config():
     eval_workers = 5
     benchmarks = ['usf', 'men_dev', 'vis_sim', 'sem_sim']
+    eval_mean_rank = False
+    tboard_projector = False
 
 @eval_ingredient.capture
-def initialize_eval(eval_workers, adjacent_list, benchmarks):
+def initialize_eval(eval_workers, adjacent_list, benchmarks, eval_mean_rank, tboard_projector):
     global eval_queue
     eval_queue = mp.Queue()
     global process
-    process = mp.Process(target=async_eval, args=(adjacent_list, benchmarks, eval_workers))
+    process = mp.Process(target=async_eval, args=(adjacent_list, benchmarks, eval_workers, eval_mean_rank, tboard_projector))
     process.start()
 
 @eval_ingredient.capture

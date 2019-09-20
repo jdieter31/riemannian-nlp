@@ -13,13 +13,14 @@ def config():
         fixed_schedule - Iterates through scheduled_lrs over durations specified in
             lr_durations and remains constant at the last lr
     """
-    schedule_type = "linear"
-    base_lr = 1
+    schedule_type = "constant"
+    base_lr = 0.0003
+    fixed_embedding_lr = 0.00005
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 
-    scheduled_lrs = [0.001, .005, 0.0003]
-    lr_durations = [30, 200]
+    scheduled_lrs = [6e-4, .001]
+    lr_durations = [15]
 
 @lr_schedule_ingredient.capture
 def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durations):
@@ -33,6 +34,10 @@ def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durati
 @lr_schedule_ingredient.capture
 def get_base_lr(base_lr):
     return base_lr
+
+@lr_schedule_ingredient.capture
+def get_fixed_embedding_lr(fixed_embedding_lr):
+    return fixed_embedding_lr
 
 def get_lr_from_schedule(epoch, scheduled_lrs, lr_durations, linear_interpolate=False):
     i = 0

@@ -4,11 +4,11 @@ import torch
 from manifolds import RiemannianManifold
 
 class ManifoldNNS:
-    def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold, samples_for_pole: int=1000):
+    def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold, samples_for_pole: int=10000):
         self.manifold = manifold
         self.compute_index(data_points, samples_for_pole)
 
-    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=0):
+    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=10000):
         if samples_for_pole == 0:
             samples_for_pole = data_points.size(0)
         perm = torch.randperm(data_points.size(0))

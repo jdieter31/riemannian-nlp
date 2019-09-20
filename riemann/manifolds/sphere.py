@@ -7,7 +7,7 @@ EPSILON = 1e-4
 class GradClippedACos(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
-        x = x.clamp(-1,  1)
+        x = x.clamp(-1 + EPSILON,  1 - EPSILON)
         ctx.save_for_backward(x)
         dtype = x.dtype
         return torch.acos(x)
@@ -15,7 +15,6 @@ class GradClippedACos(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         x, = ctx.saved_tensors
-        x = x.clamp(-1 + EPSILON, 1 - EPSILON)
         grad = - grad_output / ((1 - x ** 2) ** 0.5)
         return grad
 
@@ -71,22 +70,23 @@ class SphericalManifold(RiemannianManifold):
         norm_u = u.norm(dim=-1, keepdim=True)
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u 
         retr = self.proj(x + u)
-        return exp
         cond = norm_u > EPSILON
-        return torch.where(cond, exp, retr)
+        out = torch.where(cond, exp, retr)
+        with torch.no_grad():
+            error_correction = out.norm(dim=-1, keepdim=True)
+        return out / error_correction
 
     def log(self, x, y):
         u = y - x
         u = u - (x * u).sum(dim=-1, keepdim=True) * x
         dist = self.dist(x, y, keepdim=True)
         norm_u = u.norm(dim=-1, keepdim=True)
-        return u * dist / norm_u
         cond = norm_u > EPSILON
         return torch.where(cond, u * dist / norm_u, u)
 
     def dist(self, x, y, keepdim=False):
         inner = (x * y).sum(-1, keepdim=keepdim)
-        inner = inner.clamp(-1, 1)
+        inner = inner.clamp(-.9999, .9999)
         return acos(inner)
 
     def rgrad(self, x, dx):

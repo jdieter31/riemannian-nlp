@@ -205,6 +205,7 @@ cdef class BatchedDataset:
                 extra_rand_samples = self.n_graph_neighbors - neighbors_length
             total_graph_samples = self.n_graph_neighbors - extra_rand_samples
             excluded_samples = unordered_set[long]()
+            excluded_samples.insert(vertex)
             k = 0
             while k < neighbors_length:
                 excluded_samples.insert(self.graph_neighbors[neighbors_index + k])

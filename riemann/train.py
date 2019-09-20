@@ -29,16 +29,15 @@ def train(
         ):
 
     for epoch in range(1, n_epochs + 1):
-
         batch_losses = []
         if conformal_loss_params is not None:
             batch_conf_losses = []
         t_start = timeit.default_timer()
         if (epoch - 1) % sample_neighbors_every == 0 and thread_number == 0:
             with torch.no_grad():
-                model.to(torch.device("cpu"))
-                data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
                 model.to(device)
+                data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
+                torch.cuda.empty_cache()
         data_iterator = tqdm(data) if thread_number == 0 else data
 
         for batch in data_iterator:
@@ -47,8 +46,26 @@ def train(
             inputs = inputs.to(device)
             graph_dists = graph_dists.to(device)
             optimizer.zero_grad()
+
+            '''
+            if epoch % 6 < 3:
+                optimizing_model = False
+                for p in model.parameters():
+                    p.requires_grad = False
+                for p in model.get_additional_embeddings().parameters():
+                    p.requires_grad = True
+            else:
+                optimizing_model = True 
+                for p in model.parameters():
+                    p.requires_grad = True
+                for p in model.get_additional_embeddings().parameters():
+                    p.requires_grad = False
+            '''
+
             loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
             if hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
+                for p in model.get_additional_embeddings().parameters():
+                    p.requires_grad = False
                 main_inputs = inputs.narrow(1, 0, 1).squeeze(1)
                 perm = torch.randperm(main_inputs.size(0))
                 idx = perm[:conformal_loss_params["num_samples"]]
@@ -56,12 +73,23 @@ def train(
                 conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
                         isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
                         random_init=conformal_loss_params["random_init"])
+                offset = 1
+                if conf_loss > 200:
+                    with torch.no_grad():
+                        offset = conf_loss / 200
+                scaled_conf_loss = conf_loss / offset
+                
+                for p in model.get_additional_embeddings().parameters():
+                    p.requires_grad = True
+
 
             if conformal_loss_params is not None and conf_loss is not None:
-                total_loss = loss + conformal_loss_params["weight"] * conf_loss
+                total_loss = loss + conformal_loss_params["weight"] * scaled_conf_loss
                 total_loss.backward()
             else:
                 loss.backward()
+
+
             optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
             if conf_loss is not None:
@@ -77,6 +105,8 @@ def train(
             }
             if data.features is not None:
                 save_data["features"] = data.features
+                if model.get_additional_embeddings() is not None:
+                    save_data["additional_embeddings_state_dict"] = model.get_additional_embeddings().state_dict()
 
             save_data.update(shared_params)
             path = save_model(savable_model, save_data)

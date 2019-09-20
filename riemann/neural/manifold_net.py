@@ -10,6 +10,7 @@ class ManifoldNetwork(nn.Module):
             manifold_seq: List[RiemannianManifold],
             dimension_seq: List[int],
             non_linearity,
+            num_poles,
             log_base_inits: List[torch.Tensor],
             exp_base_inits: List[torch.Tensor],
             ):
@@ -17,14 +18,15 @@ class ManifoldNetwork(nn.Module):
         self.manifold_seq = manifold_seq
         self.dimension_seq = dimension_seq
         self.non_linearity = non_linearity
+        self.num_poles = num_poles
         layer_list = []
         for i in range(len(manifold_seq) - 1):
             if i == len(manifold_seq) - 2:
                 layer_list.append(ManifoldLayer(manifold_seq[i], manifold_seq[i+1], dimension_seq[i],
-                    dimension_seq[i+1], None, log_base_inits[i], exp_base_inits[i]))
+                    dimension_seq[i+1], None, num_poles, log_base_inits[i], exp_base_inits[i]))
             else:
                 layer_list.append(ManifoldLayer(manifold_seq[i], manifold_seq[i+1], dimension_seq[i],
-                    dimension_seq[i+1], non_linearity, log_base_inits[i], exp_base_inits[i]))
+                    dimension_seq[i+1], non_linearity, num_poles, log_base_inits[i], exp_base_inits[i]))
         self.layers = nn.ModuleList(layer_list)
 
     def forward(self, x):
@@ -35,7 +37,7 @@ class ManifoldNetwork(nn.Module):
     
     def get_save_data(self):
         return {
-            'params': [self.manifold_seq, self.dimension_seq, self.non_linearity],
+            'params': [self.manifold_seq, self.dimension_seq, self.non_linearity, self.num_poles],
             'state_dict': self.state_dict()
         }
 

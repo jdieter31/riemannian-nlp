@@ -20,12 +20,11 @@ class Savable(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def from_save_data(data, cls):
+    def from_save_data(cls, data, load_time_params=None):
         '''
         Should return an instance of the object implementing this abstract class using the data returned from get_save_data
         ''' 
         raise NotImplementedError
-
 
 save_ingredient = Ingredient("save")
 

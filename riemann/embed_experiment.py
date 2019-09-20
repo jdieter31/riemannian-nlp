@@ -17,7 +17,7 @@ import logging_thread
 from rsgd_multithread import RiemannianSGD
 from graph_embedding_utils import FeaturizedModelEmbedding
 
-from lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr
+from lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr, get_fixed_embedding_lr
 from torch.distributions import uniform
 from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 
@@ -51,16 +51,16 @@ ex.logger = logger
 @ex.config
 def config():
     n_epochs = 10000
-    eval_every = 30
+    eval_every = 1
     gpu = 0
     train_threads = 1
     embed_manifold_name = "ProductManifold"
-    embed_manifold_dim = 600
+    embed_manifold_dim = 300
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 200
+                "dimension" : 50
             },
             {
                 "name" : "SphericalManifold",
@@ -68,7 +68,7 @@ def config():
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 200
+                "dimension" : 50
             }
         ]
     }
@@ -93,7 +93,7 @@ def config():
         },
         "update_every": 1
     }
-    sample_neighbors_every = 5
+    sample_neighbors_every = 3
     resume_training = False
 
 @ex.command
@@ -138,11 +138,18 @@ def embed(
 
     shared_params = {
         "manifold": embed_manifold,
+        "dimension": embed_manifold_dim,
         "objects": data.objects,
         "in_manifold": feature_manifold
     }
     
-    optimizer = RiemannianSGD(model.parameters(), lr=get_base_lr())
+    if hasattr(model, "get_additional_embeddings") and model.get_additional_embeddings() is not None:
+        optimizer = RiemannianSGD([
+                {'params': model.get_savable_model().parameters()},
+                {'params': model.get_additional_embeddings().parameters(), 'lr': get_fixed_embedding_lr()}
+            ], lr=get_base_lr())
+    else:
+        optimizer = RiemannianSGD(model.parameters(), lr=get_base_lr())
     lr_scheduler = get_lr_scheduler(optimizer)
     
     threads = []
