@@ -13,11 +13,12 @@ def config():
     graph_data_format = "hdf5"
     symmetrize = False
     num_workers = 5
-    n_graph_neighbors = 20
-    n_manifold_neighbors = 50
-    n_rand_neighbors = 10
-    batch_size = 500
-    manifold_nn_k = 70
+    nn_workers = 25
+    n_graph_neighbors = 10
+    n_manifold_neighbors = 20
+    n_rand_neighbors = 5
+    batch_size = 1500
+    manifold_nn_k = 30
 
     # placental_mammal.n.01 -> placental mammal
     # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
@@ -34,6 +35,7 @@ def load_dataset(
         n_rand_neighbors,
         batch_size,
         num_workers,
+        nn_workers,
         symmetrize,
         graph_data_format,
         manifold_nn_k,
@@ -56,6 +58,7 @@ def load_dataset(
             n_rand_neighbors,
             batch_size,
             num_workers,
+            nn_workers,
             manifold_nn_k,
             features)
 

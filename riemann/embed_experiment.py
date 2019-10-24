@@ -55,20 +55,20 @@ def config():
     gpu = 0
     train_threads = 1
     embed_manifold_name = "ProductManifold"
-    embed_manifold_dim = 300
+    embed_manifold_dim = 500
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 50
+                "dimension" : 90
             },
             {
                 "name" : "SphericalManifold",
-                "dimension" : 200
+                "dimension" : 320
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 50
+                "dimension" : 90
             }
         ]
     }
@@ -81,10 +81,10 @@ def config():
         "discount_factor": 0.5
     }
     conformal_loss_params = {
-        "weight": 0.05,
-        "num_samples": 3,
+        "weight": 0.5,
+        "num_samples": 15,
         "isometric": True,
-        "random_samples": 3,
+        "random_samples": 15,
         "random_init": {
             'global': {
                 'init_func': 'normal_',
@@ -126,7 +126,7 @@ def embed(
         model, save_data = load_model()
         model.to(device)
         if "features" in save_data:
-            model = FeaturizedModelEmbedding(model, data.features, save_data["in_manifold"])
+            model = FeaturizedModelEmbedding(model, data.features, save_data["in_manifold"], embed_manifold, embed_manifold_dim, device=device)
     else:
         model = gen_model(data, device, embed_manifold, embed_manifold_dim)
         
@@ -142,10 +142,11 @@ def embed(
         "objects": data.objects,
         "in_manifold": feature_manifold
     }
-    
     if hasattr(model, "get_additional_embeddings") and model.get_additional_embeddings() is not None:
         optimizer = RiemannianSGD([
                 {'params': model.get_savable_model().parameters()},
+                {'params': model.main_deltas.parameters(), 'lr': 1},
+                {'params': model.additional_deltas.parameters(), 'lr':1},
                 {'params': model.get_additional_embeddings().parameters(), 'lr': get_fixed_embedding_lr()}
             ], lr=get_base_lr())
     else:

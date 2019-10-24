@@ -58,8 +58,22 @@ def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_proj
                 graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], in_manifold, manifold, dimension, featurizer=featurizer, featurizer_dim=featurizer_dim)
                 if "additional_embeddings_state_dict" in save_data:
                     graph_embedding_model.get_additional_embeddings().load_state_dict(save_data["additional_embeddings_state_dict"])
+                if "main_deltas_state_dict" in save_data:
+                    graph_embedding_model.main_deltas.load_state_dict(save_data["main_deltas_state_dict"])
+                if "additional_deltas_state_dict" in save_data:
+                    graph_embedding_model.additional_deltas.load_state_dict(save_data["additional_deltas_state_dict"])
+                if "deltas" in save_data:
+                    graph_embedding_model.deltas = save_data["deltas"]
             else:
                 graph_embedding_model.embedding_model = model
+                if "additional_embeddings_state_dict" in save_data:
+                    graph_embedding_model.get_additional_embeddings().load_state_dict(save_data["additional_embeddings_state_dict"])
+                if "main_deltas_state_dict" in save_data:
+                    graph_embedding_model.main_deltas.load_state_dict(save_data["main_deltas_state_dict"])
+                if "additional_deltas_state_dict" in save_data:
+                    graph_embedding_model.additional_deltas.load_state_dict(save_data["additional_deltas_state_dict"])
+                if "deltas" in save_data:
+                    graph_embedding_model.deltas = save_data["deltas"]
         else:
             graph_embedding_model = model
         if eval_mean_rank or tboard_projector:
@@ -88,11 +102,12 @@ def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_proj
             #poles = compute_pole_batch(embeddings, manifold)
 
             for benchmark in benchmarks_to_eval:
-                featurize = lambda w: in_manifold.proj(torch.FloatTensor(featurizer(w))) if featurizer(w) is not None else in_manifold.proj(torch.zeros(embeddings.size(-1)))
+                #featurize = lambda w: in_manifold.proj(torch.FloatTensor(featurizer(w))) if featurizer(w) is not None else in_manifold.proj(torch.zeros(embeddings.size(-1)))
                 #dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
-                dist_func = lambda w1, w2: - manifold.dist(model(w1), model(w2))
+                
+                dist_func = lambda w1, w2: - manifold.dist(graph_embedding_model.forward_featurize(w1), graph_embedding_model.forward_featurize(w2))
                 with torch.no_grad():
-                    rho = eval_benchmark_batch(benchmarks[benchmark], featurize, dist_func)
+                    rho = eval_benchmark(benchmarks[benchmark], dist_func)
                 benchmark_results[f"{benchmark}_rho"] = rho
                 write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, epoch])
             
@@ -138,7 +153,7 @@ def eval_benchmark_batch(benchmark, featurizer, dist_func):
 @eval_ingredient.config
 def config():
     eval_workers = 5
-    benchmarks = ['usf', 'men_dev', 'vis_sim', 'sem_sim']
+    benchmarks = ['men_dev']
     eval_mean_rank = False
     tboard_projector = False
 

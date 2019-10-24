@@ -72,9 +72,7 @@ class SphericalManifold(RiemannianManifold):
         retr = self.proj(x + u)
         cond = norm_u > EPSILON
         out = torch.where(cond, exp, retr)
-        with torch.no_grad():
-            error_correction = out.norm(dim=-1, keepdim=True)
-        return out / error_correction
+        return out 
 
     def log(self, x, y):
         u = y - x

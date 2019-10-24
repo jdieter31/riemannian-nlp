@@ -9,6 +9,10 @@ from tqdm import tqdm
 from logging_thread import write_tensorboard
 from graph_embedding_utils import manifold_dist_loss_relu_sum, metric_loss
 from manifold_initialization import initialize_manifold_tensor
+from manifolds import EuclideanManifold
+from manifold_tensors import ManifoldParameter
+
+import random
 
 def train(
         device,
@@ -28,6 +32,7 @@ def train(
         conformal_loss_params
         ):
 
+    batch_num = 0
     for epoch in range(1, n_epochs + 1):
         batch_losses = []
         if conformal_loss_params is not None:
@@ -42,60 +47,107 @@ def train(
 
         for batch in data_iterator:
             conf_loss = None
+            delta_loss = None
             inputs, graph_dists = batch
             inputs = inputs.to(device)
             graph_dists = graph_dists.to(device)
             optimizer.zero_grad()
-
-            '''
-            if epoch % 6 < 3:
+            
+            rand_val = random.random()
+            if rand_val > 0.7 and epoch < 0:
                 optimizing_model = False
+                optimizing_deltas = False
+                model.deltas = False
                 for p in model.parameters():
                     p.requires_grad = False
                 for p in model.get_additional_embeddings().parameters():
                     p.requires_grad = True
-            else:
+                if model.deltas:
+                    for p in model.main_deltas.parameters():
+                        p.requires_grad = False
+                    if hasattr(model, "additional_deltas"):
+                        for p in model.additional_deltas.parameters():
+                            p.requires_grad = False
+            elif epoch < 0:
                 optimizing_model = True 
+                optimizing_deltas = False
+                model.deltas = False
                 for p in model.parameters():
                     p.requires_grad = True
                 for p in model.get_additional_embeddings().parameters():
                     p.requires_grad = False
-            '''
-
-            loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
-            if hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
+                if model.deltas:
+                    for p in model.main_deltas.parameters():
+                        p.requires_grad = False
+                    if hasattr(model, "additional_deltas"):
+                        for p in model.additional_deltas.parameters():
+                            p.requires_grad = False
+            else:
+                optimizing_model = False
+                optimizing_deltas = True
+                model.deltas = True
+                for p in model.parameters():
+                    p.requires_grad = False
                 for p in model.get_additional_embeddings().parameters():
                     p.requires_grad = False
-                main_inputs = inputs.narrow(1, 0, 1).squeeze(1)
+                if model.deltas:
+                    for p in model.main_deltas.parameters():
+                        p.requires_grad = True
+                    if hasattr(model, "additional_deltas"):
+                        for p in model.additional_deltas.parameters():
+                            p.requires_grad = True
+
+            loss = 0.5 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
+
+            if optimizing_model and hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
+                main_inputs = inputs.narrow(1, 0, 1).squeeze(1).clone().detach()
                 perm = torch.randperm(main_inputs.size(0))
                 idx = perm[:conformal_loss_params["num_samples"]]
                 main_inputs = main_inputs[idx]
                 conf_loss = metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
                         isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
                         random_init=conformal_loss_params["random_init"])
-                offset = 1
-                if conf_loss > 200:
-                    with torch.no_grad():
-                        offset = conf_loss / 200
-                scaled_conf_loss = conf_loss / offset
-                
-                for p in model.get_additional_embeddings().parameters():
-                    p.requires_grad = True
 
+            if hasattr(model, 'main_deltas') and optimizing_deltas:
+                main_inputs = inputs.view(inputs.shape[0], -1)
+                vals = model.main_deltas(model.index_map[main_inputs][model.index_map[main_inputs] >= 0])
+                mean_deltas = torch.mean(torch.norm(vals, dim=-1))
+                delta_loss = 800 * torch.mean(torch.norm(vals, dim=-1) ** 2)
 
             if conformal_loss_params is not None and conf_loss is not None:
-                total_loss = loss + conformal_loss_params["weight"] * scaled_conf_loss
+                total_loss = (1 - conformal_loss_params["weight"]) * loss + conformal_loss_params["weight"] * conf_loss
+                if delta_loss is not None:
+                    #   total_loss += delta_loss
+                    pass
                 total_loss.backward()
             else:
-                loss.backward()
+                if conformal_loss_params is not None:
+                    scaled_loss = (1 - conformal_loss_params["weight"]) * loss
+                else:
+                    scaled_loss = loss
+
+                if delta_loss is not None:
+                    scaled_loss += delta_loss
+                scaled_loss.backward()
 
 
             optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
+            if thread_number == 0:
+                write_tensorboard('add_scalar', ['minibatch_loss', batch_losses[-1], batch_num])
+
+                if delta_loss is not None:
+                    write_tensorboard('add_scalar', ['minibatch_delta_loss', delta_loss.cpu().detach().numpy(), batch_num])
+                    write_tensorboard('add_scalar', ['minibatch_delta_mean', mean_deltas.cpu().detach().numpy(), batch_num])
+
             if conf_loss is not None:
                 batch_conf_losses.append(conf_loss.cpu().detach().numpy())
+                if thread_number == 0:
+                    write_tensorboard('add_scalar', ['minibatch_conf_loss', batch_conf_losses[-1], batch_num])
 
             elapsed = timeit.default_timer() - t_start
+            batch_num += 1
+
 
         if (epoch == 1 or epoch % eval_every == 0 or epoch == n_epochs) and thread_number == 0:
             mean_loss = float(np.mean(batch_losses))
@@ -107,6 +159,11 @@ def train(
                 save_data["features"] = data.features
                 if model.get_additional_embeddings() is not None:
                     save_data["additional_embeddings_state_dict"] = model.get_additional_embeddings().state_dict()
+                if hasattr(model, "main_deltas"):
+                    save_data["main_deltas_state_dict"] = model.main_deltas.state_dict()
+                if hasattr(model, "additional_deltas"):
+                    save_data["additional_deltas_state_dict"] = model.additional_deltas.state_dict()
+                save_data["deltas"] = model.deltas
 
             save_data.update(shared_params)
             path = save_model(savable_model, save_data)

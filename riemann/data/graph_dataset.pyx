@@ -38,7 +38,7 @@ cdef class BatchedDataset:
     cdef public list features
     cdef public object idx
     cdef object manifold
-    cdef int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers
+    cdef public int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers, nn_workers
     cdef object queue
     cdef object graph
     cdef long[:] graph_neighbors
@@ -50,7 +50,7 @@ cdef class BatchedDataset:
     cdef list threads
 
     def __cinit__(self, idx, objects, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
-            batch_size, num_workers, manifold_nn_k=60, features=None):
+            batch_size, num_workers, nn_workers, manifold_nn_k=60, features=None):
         self.idx = idx
         self.objects = objects
         self.manifold = manifold
@@ -64,6 +64,7 @@ cdef class BatchedDataset:
         self.graph.add_edge_list(idx)
         self.manifold_nn_k = manifold_nn_k
         self.num_workers = num_workers
+        self.nn_workers = nn_workers
         print("Processing graph neighbors...")
         all_graph_neighbors = [self.graph.get_all_neighbors(i) for i in tqdm(range(self.N))]
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_graph_neighbors)
@@ -88,7 +89,7 @@ cdef class BatchedDataset:
     def refresh_manifold_nn(self, manifold_embedding, manifold):
         manifold_nns = ManifoldNNS(manifold_embedding, manifold)
         print("\nQuerying near neighbors...")
-        nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.num_workers)
+        nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.nn_workers)
         print("Processing near neighbor data...")
         all_manifold_neighbors = [nns[i][0][1:].astype(np.int64) for i in range(self.N)]
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_manifold_neighbors)

@@ -10,7 +10,7 @@ class ManifoldNetwork(nn.Module):
             manifold_seq: List[RiemannianManifold],
             dimension_seq: List[int],
             non_linearity,
-            num_poles,
+            num_poles: List[int],
             log_base_inits: List[torch.Tensor],
             exp_base_inits: List[torch.Tensor],
             ):

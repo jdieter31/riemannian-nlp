@@ -25,13 +25,13 @@ class ManifoldLayer(nn.Module):
         self.out_dimension = out_dimension
         self.num_poles = num_poles
         if log_base_init is not None:
-            self.log_base = ManifoldParameter(log_base_init, manifold=in_manifold)
+            self.log_base = ManifoldParameter(log_base_init, manifold=in_manifold, lr_scale=1)
         else:
-            self.log_base = ManifoldParameter(torch.Tensor(num_poles, in_dimension), manifold=in_manifold)
+            self.log_base = ManifoldParameter(torch.Tensor(num_poles, in_dimension), manifold=in_manifold, lr_scale=1)
         if exp_base_init is not None:
-            self.exp_base = ManifoldParameter(exp_base_init, manifold=out_manifold)
+            self.exp_base = ManifoldParameter(exp_base_init, manifold=out_manifold, lr_scale=1)
         else:
-            self.exp_base = ManifoldParameter(torch.Tensor(out_dimension), manifold=out_manifold)
+            self.exp_base = ManifoldParameter(torch.Tensor(out_dimension), manifold=out_manifold, lr_scale=1)
 
         self.linear_layer = nn.Linear(in_dimension * num_poles, out_dimension, bias=False)
         if ortho_init:

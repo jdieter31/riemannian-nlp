@@ -114,7 +114,9 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
     if isometric:
-        loss = riemannian_divergence(in_metric_reduced, pullback_metric).mean()
+        rd = riemannian_divergence(in_metric_reduced, pullback_metric)
+        rd_scaled = torch.sqrt(rd)
+        loss = rd_scaled.mean()
     else:
         loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
 
@@ -124,9 +126,9 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    eigenvalues_positive = torch.clamp(eigenvalues, min=1e-5) 
-    log_eig = torch.log(eigenvalues_positive)
-    return log_eig.norm(dim=-1) ** 2
+    # eigenvalues_positive = torch.clamp(eigenvalues, min=1e-5) 
+    log_eig = torch.log(eigenvalues)
+    return (log_eig * log_eig).sum(dim=-1)
 
 def closest_pd_matrix(matrix: torch.Tensor):
     eigenvalues, vectors = torch.symeig(matrix, eigenvectors=True)
@@ -187,22 +189,35 @@ class ManifoldEmbedding(Embedding, Savable):
         return self
 
 class FeaturizedModelEmbedding(nn.Module):
-    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold, out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None, manifold_initialization=None):
+    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold, out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None, manifold_initialization=None, deltas=True):
         super(FeaturizedModelEmbedding, self).__init__()
         self.embedding_model = embedding_model
         self.embedding_model.to(device)
+        self.features_list = features_list
         if featurizer is None:
             featurizer, featurizer_dim = get_canonical_glove_word_featurizer()
         self.featurizer = featurizer
         self.featurizer_dim = featurizer_dim
+        self.out_manifold = out_manifold
         self.input_embedding, self.index_map = get_featurized_embedding(features_list, featurizer, featurizer_dim, dtype=dtype, device=device)
         in_manifold.proj_(self.input_embedding.weight)
+        self.deltas = deltas
+        if deltas:
+            self.main_deltas = Embedding(torch.sum(self.index_map >= 0), out_dim)
+            with torch.no_grad():
+                self.main_deltas.weight /= 100
+
         self.additional_embeddings = None
         self.additional_index_map = None
         num_non_featurized = torch.sum(self.index_map < 0)
         if num_non_featurized > 0:
             self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim)
             self.additional_embeddings.to(device)
+            if deltas:
+                self.additional_deltas = Embedding(num_non_featurized, out_dim)
+                with torch.no_grad():
+                    self.additional_deltas.weight /= 100
+
             if manifold_initialization is not None:
                 with torch.no_grad():
                     num_perms = ceil(int(num_non_featurized) / self.input_embedding.weight.size(0))
@@ -215,10 +230,10 @@ class FeaturizedModelEmbedding(nn.Module):
                     vector_offset = get_initialized_manifold_tensor(device, dtype, self.additional_embeddings.weight.size(), tangent_space, {
                             'global': {
                                 'init_func': 'normal_',
-                                'params': [-0.01, 0.01]
+                                'params': [-0.1, 0.1]
                             }
                         }, False)
-                    self.additional_embeddings.weight.data = in_manifold.exp(self.additional_embeddings.weight.data, vector_offset)
+                    self.additional_embeddings.weight.data = in_manifold.retr(self.additional_embeddings.weight.data, vector_offset)
 
             self.additional_index_map = torch.zeros_like(self.index_map) - 1
             self.additional_index_map[self.index_map < 0] = torch.arange(0, num_non_featurized, dtype=self.index_map.dtype, device=device)
@@ -276,30 +291,48 @@ class FeaturizedModelEmbedding(nn.Module):
                             done_processing = True
 
                         word_index += 1
-                    vector_offset = get_initialized_manifold_tensor(device, dtype, self.additional_embeddings.weight.size(), tangent_space, {
+                    single_average_indices = torch.LongTensor([index for index in average_counts if average_counts[index] == 1])
+                    single_average_indices.to(device)
+
+                    vector_offset = get_initialized_manifold_tensor(device, dtype,
+                            self.additional_embeddings.weight.data[self.additional_index_map[single_average_indices]].size(),
+                            tangent_space, {
                             'global': {
                                 'init_func': 'normal_',
-                                'params': [-0.001, 0.001]
+                                'params': [-0.1, 0.1]
                             }
                         }, False)
-                    self.additional_embeddings.weight.data = in_manifold.exp(self.additional_embeddings.weight.data, vector_offset)
+                    self.additional_embeddings.weight.data[self.additional_index_map[single_average_indices]] = in_manifold.retr(
+                            self.additional_embeddings.weight.data[self.additional_index_map[single_average_indices]], vector_offset)
 
 
         if device is not None:
             self.to(device)
 
     def forward(self, x):
-        return self.embedding_model(self.map_to_input_embeddings(x))
+        out = self.embedding_model(self.map_to_input_embeddings(x))
+        if self.deltas:
+            out = self.out_manifold.exp(out, self.map_to_deltas(x))
+        return out
 
     def forward_featurize(self, feature):
-        featurized = self.embedding_model(self.featurizer(feature))
-        return featurized
+        if feature in self.features_list:
+            in_tensor = torch.LongTensor([self.features_list.index(feature)], device=self.input_embedding.weight.device)
+            return self.forward(in_tensor)
+        featurized = torch.as_tensor(self.featurizer(feature), dtype=self.input_embedding.weight.dtype, device=self.input_embedding.weight.device)
+        return self.embedding_model(featurized)
 
     def map_to_input_embeddings(self, x):
         if self.additional_embeddings is not None:
             return torch.where(self.index_map[x].unsqueeze(-1) > -1, self.input_embedding(self.index_map[x].clamp(min=0)), self.additional_embeddings(self.additional_index_map[x].clamp(min=0)))
         else:
             return self.input_embedding(x)
+
+    def map_to_deltas(self, x):
+        if self.additional_deltas is not None:
+            return torch.where(self.index_map[x].unsqueeze(-1) > -1, self.main_deltas(self.index_map[x].clamp(min=0)), self.additional_deltas(self.additional_index_map[x].clamp(min=0)))
+        else:
+            return self.main_deltas(x)
 
 
     def get_embedding_matrix_input(self, num_blocks=50):
@@ -333,7 +366,7 @@ class FeaturizedModelEmbedding(nn.Module):
 
 def get_canonical_glove_sentence_featurizer():
     embedder = GloveSentenceEmbedder.canonical()
-    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l2_normalize=False), embedder.dim
+    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l3_normalize=False), embedder.dim
 
 def get_canonical_glove_word_featurizer():
     glove = Glove.canonical()

@@ -19,7 +19,7 @@ class ManifoldNNS:
         self.index = nmslib.init(method="hnsw", space="l2")
         self.index.addDataPointBatch(self.data_embedding.cpu().detach().numpy())
         print("Computing manifold nns index")
-        self.index.createIndex({'post': 2}, print_progress=True)
+        self.index.createIndex({'post': 0}, print_progress=True)
 
         
     def knn_query_batch_vectors(self, data, k=10, num_threads=4, log_space=False):

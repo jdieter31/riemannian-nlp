@@ -36,6 +36,7 @@ class RiemannianSGD(Optimizer):
                     lr = group['lr']
                     if isinstance(p, ManifoldParameter):
                         manifold = p.manifold
+                        lr *= p.lr_scale
                     else:
                         manifold = EuclideanManifold()
 
