@@ -89,7 +89,7 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
     torch_dtype = torch.double if double_precision else torch.float
     if model_type == "embedding":
         model = ManifoldEmbedding(manifold_out, len(data.objects), manifold_out_dim, sparse=sparse)
-        initiali1e_manifold_tensor(model.weight.data, manifold_out, manifold_initialization)
+        initialize_manifold_tensor(model.weight.data, manifold_out, manifold_initialization)
     elif model_type == "featurized_model_manifold_logistic":
         features = data.features
         featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()

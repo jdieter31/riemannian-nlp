@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-from manifolds import EuclideanManifold
+from .manifolds import EuclideanManifold
 
 class ManifoldParameter(nn.Parameter):
     """PyTorch tensor with information about the manifold it is contained on."""

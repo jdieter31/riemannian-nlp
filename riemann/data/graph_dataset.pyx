@@ -36,6 +36,7 @@ cdef unsigned long rand_r(unsigned long* seed) nogil:
 cdef class BatchedDataset:
     cdef public list objects
     cdef public list features
+    cdef public object weights
     cdef public object idx
     cdef object manifold
     cdef public int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers, nn_workers
@@ -43,17 +44,20 @@ cdef class BatchedDataset:
     cdef object graph
     cdef long[:] graph_neighbors
     cdef long[:] graph_neighbors_indices
+    cdef float[:] graph_neighbor_weights
     cdef long[:] manifold_neighbors
     cdef long[:] manifold_neighbors_indices
     cdef long[:] perm
     cdef long[:,:] graph_neighbor_permutations
+    cdef unordered_map[int, int] graph_neighbor_difs
     cdef list threads
 
-    def __cinit__(self, idx, objects, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
+    def __cinit__(self, idx, objects, weights, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
             batch_size, num_workers, nn_workers, manifold_nn_k=60, features=None):
         self.idx = idx
         self.objects = objects
         self.manifold = manifold
+        self.weights = weights
         self.n_graph_neighbors = n_graph_neighbors
         self.n_manifold_neighbors = n_manifold_neighbors
         self.N = len(objects)
@@ -61,14 +65,25 @@ cdef class BatchedDataset:
         self.features = features
         self.queue = queue.Queue(maxsize=num_workers)
         self.graph = Graph(directed=False)
-        self.graph.add_edge_list(idx)
+        idx_weights = [[edge[0], edge[1], weight] for edge, weight in zip(self.idx, self.weights)]
+        weight_property = self.graph.new_edge_property("float")
+        eprops = [weight_property]  
+        self.graph.add_edge_list(idx_weights, eprops=eprops)
         self.manifold_nn_k = manifold_nn_k
         self.num_workers = num_workers
         self.nn_workers = nn_workers
         print("Processing graph neighbors...")
-        all_graph_neighbors = [self.graph.get_all_neighbors(i) for i in tqdm(range(self.N))]
+        all_graph_neighbors = []
+        all_graph_weights = []
+        for i in tqdm(range(self.N)):
+            in_edges = self.graph.get_in_edges(i, [weight_property])
+            out_edges = self.graph.get_out_edges(i, [weight_property])
+            all_graph_neighbors.append(np.concatenate([in_edges[:, 0], out_edges[:, 1]]).astype(np.int64))
+            all_graph_weights.append(np.concatenate([in_edges[:, 2], out_edges[:, 2]]).astype(np.float32))
+
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_graph_neighbors)
         self.graph_neighbors = np.concatenate(all_graph_neighbors)
+        self.graph_neighbor_weights = np.concatenate(all_graph_weights)
         self.graph_neighbors_indices = np.empty([index_size], dtype=np.int64)
         self.numpy_list_to_1d_memview(all_graph_neighbors, self.graph_neighbors, self.graph_neighbors_indices)
     
@@ -100,17 +115,19 @@ cdef class BatchedDataset:
 
     cpdef initialize_graph_perms(self):
         graph_neighbor_permutations = []
-        cdef int max_dif = 0
+        difs = []
+        self.graph_neighbor_difs.clear()
         cdef int i = 0
         while i < self.N:
             num_neighbors = self.graph_neighbors_indices[i + 1] - self.graph_neighbors_indices[i]
             dif = num_neighbors - self.n_graph_neighbors
-            if dif > max_dif:
-                max_dif = dif
+            if dif > 0 and dif not in difs:
+                difs.append(dif)
+                self.graph_neighbor_difs[dif] = len(difs) - 1
             i = i+1
-        
-        for i in range(max_dif):
-            graph_neighbor_permutations.append(np.random.permutation(i + 1 + self.n_graph_neighbors)[:self.n_graph_neighbors])
+
+        for dif in difs:
+            graph_neighbor_permutations.append(np.random.permutation(dif + self.n_graph_neighbors)[:self.n_graph_neighbors])
 
         if len(graph_neighbor_permutations) > 0:
             self.graph_neighbor_permutations = np.stack(graph_neighbor_permutations)
@@ -187,7 +204,7 @@ cdef class BatchedDataset:
         '''
         cdef int vertex, extra_rand_samples, total_graph_samples, new_vertex
         cdef int j, k, l, current_index
-        cdef int neighbors_index, neighbors_length, size_dif
+        cdef int neighbors_index, neighbors_length, size_dif, permutation_index
         cdef unordered_set[long] excluded_samples
         cdef unsigned long seed
 
@@ -215,12 +232,14 @@ cdef class BatchedDataset:
             size_dif = neighbors_length - self.n_graph_neighbors
             while k < 1+total_graph_samples:
                 if size_dif > 0:
-                    vertices[j, k] = self.graph_neighbors[neighbors_index + self.graph_neighbor_permutations[size_dif - 1][k - 1]]
+                    permutation_index = self.graph_neighbor_difs[size_dif]
+                    vertices[j, k] = self.graph_neighbors[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]]
+                    graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]] + 2)
                 else:
                     vertices[j, k] = self.graph_neighbors[neighbors_index + k - 1]
-                graph_dists[j,k - 1] = 1
+                    graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + k - 1] + 2)
                 k = k + 1
-            current_index = k
+                current_index = k
             if self.n_manifold_neighbors > 0:
                 neighbors_index = self.manifold_neighbors_indices[vertex]
                 neighbors_length = self.manifold_neighbors_indices[vertex + 1] - neighbors_index

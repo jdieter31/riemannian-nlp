@@ -2,17 +2,17 @@ import torch
 import torch.nn as nn
 from torch.nn import Embedding
 from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_, mse_loss, cosine_similarity, relu
-from manifolds import RiemannianManifold, EuclideanManifold
-from manifold_tensors import ManifoldParameter
+from .manifolds import RiemannianManifold, EuclideanManifold
+from .manifold_tensors import ManifoldParameter
 from typing import Dict, List
-from embedding import GloveSentenceEmbedder
-from embedding import SimpleSentence
-from embedding import Glove
+from .embedding import GloveSentenceEmbedder
+from .embedding import SimpleSentence
+from .embedding import Glove
 from tqdm import tqdm
-from embed_save import Savable
-from jacobian import compute_jacobian
+from .embed_save import Savable
+from .jacobian import compute_jacobian
 import numpy as np
-from manifold_initialization import initialize_manifold_tensor, get_initialized_manifold_tensor
+from .manifold_initialization import initialize_manifold_tensor, get_initialized_manifold_tensor
 from torch.autograd import Function
 from math import ceil
 from tqdm import tqdm
@@ -112,13 +112,20 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
     in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
+    
+    if not isometric:
+        in_metric_reduced = in_metric_reduced / in_metric_reduced.norm(dim=(-2, -1), keepdim=True)
+        pullback_metric = pullback_metric / pullback_metric.norm(dim=(-2, -1), keepdim=True)
 
-    if isometric:
-        rd = riemannian_divergence(in_metric_reduced, pullback_metric)
-        rd_scaled = torch.sqrt(rd)
-        loss = rd_scaled.mean()
+    # if isometric:
+    rd = riemannian_divergence(in_metric_reduced, pullback_metric)
+    rd_scaled = torch.sqrt(rd)
+    loss = rd_scaled.mean()
+
+    '''
     else:
         loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
+    '''
 
     return loss
 
@@ -189,7 +196,7 @@ class ManifoldEmbedding(Embedding, Savable):
         return self
 
 class FeaturizedModelEmbedding(nn.Module):
-    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold, out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None, manifold_initialization=None, deltas=True):
+    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold, out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None, manifold_initialization=None, deltas=False):
         super(FeaturizedModelEmbedding, self).__init__()
         self.embedding_model = embedding_model
         self.embedding_model.to(device)
@@ -227,13 +234,21 @@ class FeaturizedModelEmbedding(nn.Module):
                         perm = torch.randperm(self.input_embedding.weight.size(0), device=device)[:end_index - start_index]
                         self.additional_embeddings.weight.data[start_index : end_index] = self.input_embedding.weight[perm]
                     tangent_space = EuclideanManifold()
-                    vector_offset = get_initialized_manifold_tensor(device, dtype, self.additional_embeddings.weight.size(), tangent_space, {
-                            'global': {
-                                'init_func': 'normal_',
-                                'params': [-0.1, 0.1]
-                            }
-                        }, False)
-                    self.additional_embeddings.weight.data = in_manifold.retr(self.additional_embeddings.weight.data, vector_offset)
+                    if self.additional_embeddings.weight.size(0) > 1000:
+                        blocks = 50
+                    else:
+                        blocks = 1
+                    block_size = ceil(self.additional_embeddings.weight.size(0) / blocks)
+                    for i in tqdm(range(blocks)):
+                        start_index = i * block_size
+                        end_index = min((i + 1) * block_size, self.additional_embeddings.weight.size(0))
+                        vector_offset = get_initialized_manifold_tensor(device, dtype, [end_index - start_index] + list(self.additional_embeddings.weight.size()[1:]), tangent_space, {
+                                'global': {
+                                    'init_func': 'normal_',
+                                    'params': [-0.1, 0.1]
+                                }
+                            }, False)
+                        self.additional_embeddings.weight[start_index:end_index] = in_manifold.retr(self.additional_embeddings.weight[start_index:end_index], vector_offset)
 
             self.additional_index_map = torch.zeros_like(self.index_map) - 1
             self.additional_index_map[self.index_map < 0] = torch.arange(0, num_non_featurized, dtype=self.index_map.dtype, device=device)

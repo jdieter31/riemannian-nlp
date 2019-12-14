@@ -8,22 +8,23 @@ data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
-    path = "data/concept_net.csv"
+    # path = "data/enwiki-2013.txt"
+    path = "data/concept_net_en_weighted.csv"
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
     num_workers = 5
     nn_workers = 25
-    n_graph_neighbors = 10
+    n_graph_neighbors = 20
     n_manifold_neighbors = 20
     n_rand_neighbors = 5
-    batch_size = 1500
-    manifold_nn_k = 30
+    batch_size = 3000
+    manifold_nn_k = 50
 
     # placental_mammal.n.01 -> placental mammal
-    # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
-
+    object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
+    # object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
+    # object_id_to_feature_func = lambda word : str(word)
 
 @data_ingredient.capture
 def load_dataset(
@@ -52,6 +53,7 @@ def load_dataset(
     return BatchedDataset(
             idx,
             objects,
+            weights,
             manifold,
             n_graph_neighbors,
             n_manifold_neighbors,

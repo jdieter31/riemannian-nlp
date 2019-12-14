@@ -42,6 +42,7 @@ def train(
             with torch.no_grad():
                 model.to(device)
                 data.refresh_manifold_nn(model.get_embedding_matrix(), manifold)
+                import gc ; gc.collect()
                 torch.cuda.empty_cache()
         data_iterator = tqdm(data) if thread_number == 0 else data
 
@@ -54,34 +55,37 @@ def train(
             optimizer.zero_grad()
             
             rand_val = random.random()
-            if rand_val > 0.7 and epoch < 0:
-                optimizing_model = False
-                optimizing_deltas = False
-                model.deltas = False
-                for p in model.parameters():
-                    p.requires_grad = False
-                for p in model.get_additional_embeddings().parameters():
-                    p.requires_grad = True
-                if model.deltas:
-                    for p in model.main_deltas.parameters():
+            optimizing_model = False
+            if hasattr(model, "get_additional_embeddings"):
+                if rand_val > 0.7: 
+                    optimizing_model = False
+                    optimizing_deltas = False
+                    model.deltas = False
+                    for p in model.parameters():
                         p.requires_grad = False
-                    if hasattr(model, "additional_deltas"):
-                        for p in model.additional_deltas.parameters():
+                    for p in model.get_additional_embeddings().parameters():
+                        p.requires_grad = True
+                    if model.deltas:
+                        for p in model.main_deltas.parameters():
                             p.requires_grad = False
-            elif epoch < 0:
-                optimizing_model = True 
-                optimizing_deltas = False
-                model.deltas = False
-                for p in model.parameters():
-                    p.requires_grad = True
-                for p in model.get_additional_embeddings().parameters():
-                    p.requires_grad = False
-                if model.deltas:
-                    for p in model.main_deltas.parameters():
+                        if hasattr(model, "additional_deltas"):
+                            for p in model.additional_deltas.parameters():
+                                p.requires_grad = False
+                else:
+                    optimizing_model = True 
+                    optimizing_deltas = False
+                    model.deltas = False
+                    for p in model.parameters():
+                        p.requires_grad = True
+                    for p in model.get_additional_embeddings().parameters():
                         p.requires_grad = False
-                    if hasattr(model, "additional_deltas"):
-                        for p in model.additional_deltas.parameters():
+                    if model.deltas:
+                        for p in model.main_deltas.parameters():
                             p.requires_grad = False
+                        if hasattr(model, "additional_deltas"):
+                            for p in model.additional_deltas.parameters():
+                                p.requires_grad = False
+            '''
             else:
                 optimizing_model = False
                 optimizing_deltas = True
@@ -96,6 +100,7 @@ def train(
                     if hasattr(model, "additional_deltas"):
                         for p in model.additional_deltas.parameters():
                             p.requires_grad = True
+            '''
 
             loss = 0.5 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
 

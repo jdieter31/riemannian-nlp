@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from manifolds import RiemannianManifold
+from ..manifolds import RiemannianManifold
 from .manifold_layer import ManifoldLayer
 from typing import List
 
@@ -10,7 +10,7 @@ class ManifoldNetwork(nn.Module):
             manifold_seq: List[RiemannianManifold],
             dimension_seq: List[int],
             non_linearity,
-            num_poles: List[int],
+            num_poles: int,
             log_base_inits: List[torch.Tensor],
             exp_base_inits: List[torch.Tensor],
             ):

@@ -1,9 +1,10 @@
 import torch.nn as nn
 import torch
-from manifolds import RiemannianManifold
-from manifold_tensors import ManifoldParameter
-from embed_save import Savable
+from ..manifolds import RiemannianManifold
+from ..manifold_tensors import ManifoldParameter
+from ..embed_save import Savable
 from torch.nn.init import orthogonal_
+import math
 
 class ManifoldLayer(nn.Module):
     def __init__(
@@ -17,6 +18,7 @@ class ManifoldLayer(nn.Module):
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
             ortho_init=True,
+            normalize_out=False
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold
@@ -24,6 +26,7 @@ class ManifoldLayer(nn.Module):
         self.in_dimension = in_dimension
         self.out_dimension = out_dimension
         self.num_poles = num_poles
+        self.normalize_out = normalize_out
         if log_base_init is not None:
             self.log_base = ManifoldParameter(log_base_init, manifold=in_manifold, lr_scale=1)
         else:
@@ -53,10 +56,12 @@ class ManifoldLayer(nn.Module):
     def forward(self, x):
         x_expanded = x.unsqueeze(-2)
         log_x = self.in_manifold.log(self.log_base, x_expanded)
-        log_x_flattened = log_x.view(*x_expanded.size()[:-2], -1) 
+        log_x_flattened = log_x.view(*x_expanded.size()[:-2], -1)
         linear_out = self.linear_layer(log_x_flattened)
         if self.non_linearity is not None:
             linear_out = self.non_linearity(linear_out)
+        if self.normalize_out:
+            linear_out = linear_out / math.sqrt(self.out_dimension)
         exp_out = self.out_manifold.exp(self.exp_base, linear_out)
         return exp_out
 

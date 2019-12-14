@@ -3,9 +3,9 @@
 
 from torch.optim.optimizer import Optimizer, required
 import torch
-from manifold_tensors import ManifoldParameter
-from manifolds import EuclideanManifold
-from logging_thread import write_log
+from .manifold_tensors import ManifoldParameter
+from .manifolds import EuclideanManifold
+from .logging_thread import write_log
 
 class RiemannianSGD(Optimizer):
 
@@ -14,8 +14,22 @@ class RiemannianSGD(Optimizer):
             params,
             lr=0.001,
             clip_grads=True,
-            clip_val=10
+            clip_val=10,
+            adam_for_euc=True
     ):
+        self.adam_optimizer = None
+        if adam_for_euc:
+            riemann_params = []
+            adam_params = []
+            for param in params:
+                if isinstance(param, ManifoldParameter) and not isinstance(param.manifold, EuclideanManifold):
+                    riemann_params.append(param)
+                else:
+                    adam_params.append(param)
+
+            self.adam_optimizer = torch.optim.Adam(adam_params, lr=lr, betas=(.9, .995), eps=1e-9)
+            params = riemann_params
+        
         defaults = {
             'lr': lr,
         }
@@ -27,6 +41,8 @@ class RiemannianSGD(Optimizer):
         """Performs a single optimization step.
 
         """
+        if self.adam_optimizer is not None:
+            self.adam_optimizer.step()
         loss = None
         with torch.no_grad():
             for group in self.param_groups:

@@ -2,6 +2,8 @@ import nmslib
 import numpy
 import torch
 from manifolds import RiemannianManifold
+from tqdm import tqdm
+from math import ceil
 
 class ManifoldNNS:
     def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold, samples_for_pole: int=10000):
@@ -14,11 +16,23 @@ class ManifoldNNS:
         perm = torch.randperm(data_points.size(0))
         idx = perm[:min(samples_for_pole, perm.size(0))]
         self.pole = compute_pole(data_points[idx], self.manifold)
-        pole_batch = self.pole.unsqueeze(0).expand_as(data_points)
-        self.data_embedding = self.manifold.log(pole_batch, data_points)
+        num_blocks = 50
+        block_size = ceil(data_points.size(0) / num_blocks)
+        print("Projecting to Euclidean space for nns:")
+
         self.index = nmslib.init(method="hnsw", space="l2")
+        self.data_embedding = data_points
+
+        pole_batch = self.pole.unsqueeze(0).expand_as(data_points[:block_size])
+
+        for i in tqdm(range(num_blocks)):
+            start_index = i * block_size
+            end_index = min((i + 1) * block_size, data_points.size(0))
+            self.data_embedding[start_index:end_index] = self.manifold.log(pole_batch[0: end_index-start_index], data_points[start_index:end_index])
+            import gc ; gc.collect()
+
         self.index.addDataPointBatch(self.data_embedding.cpu().detach().numpy())
-        print("Computing manifold nns index")
+        print("Computing nns index:")
         self.index.createIndex({'post': 0}, print_progress=True)
 
         

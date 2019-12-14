@@ -115,8 +115,7 @@ def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_proj
 
         if eval_mean_rank:
             write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-            write_tensorboard('add_scalar', ['map_rank', maprank, epoch])
-
+            write_tensorboard('add_scalar', ['map_rank', maprank, epoch]) 
         write_log(f"Stats: {json.dumps(lmsg)}")
 
 

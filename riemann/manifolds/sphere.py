@@ -67,12 +67,13 @@ class SphericalManifold(RiemannianManifold):
         return self.proj_(x, indices)
 
     def exp(self, x, u):
+        u = u - (x * u).sum(dim=-1, keepdim=True) * x
         norm_u = u.norm(dim=-1, keepdim=True)
-        exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u 
+        exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
         retr = self.proj(x + u)
         cond = norm_u > EPSILON
         out = torch.where(cond, exp, retr)
-        return out 
+        return out
 
     def log(self, x, y):
         u = y - x

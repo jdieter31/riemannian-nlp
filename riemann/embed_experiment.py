@@ -55,20 +55,20 @@ def config():
     gpu = 0
     train_threads = 1
     embed_manifold_name = "ProductManifold"
-    embed_manifold_dim = 500
+    embed_manifold_dim = 350
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 90
+                "dimension" : 75
             },
             {
                 "name" : "SphericalManifold",
-                "dimension" : 320
+                "dimension" : 200
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 90
+                "dimension" : 75
             }
         ]
     }
@@ -77,13 +77,13 @@ def config():
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
     tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
     loss_params = {
-        "margin": 0.001,
+        "margin": 0.1,
         "discount_factor": 0.5
     }
     conformal_loss_params = {
         "weight": 0.5,
         "num_samples": 15,
-        "isometric": True,
+        "isometric": False,
         "random_samples": 15,
         "random_init": {
             'global': {
@@ -145,8 +145,8 @@ def embed(
     if hasattr(model, "get_additional_embeddings") and model.get_additional_embeddings() is not None:
         optimizer = RiemannianSGD([
                 {'params': model.get_savable_model().parameters()},
-                {'params': model.main_deltas.parameters(), 'lr': 1},
-                {'params': model.additional_deltas.parameters(), 'lr':1},
+                # {'params': model.main_deltas.parameters(), 'lr': 1},
+                # {'params': model.additional_deltas.parameters(), 'lr':1},
                 {'params': model.get_additional_embeddings().parameters(), 'lr': get_fixed_embedding_lr()}
             ], lr=get_base_lr())
     else:
