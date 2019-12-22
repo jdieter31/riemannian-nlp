@@ -62,7 +62,7 @@ def train(
 
         for batch in data_iterator:
             if batch_num % eval_every == 0 and thread_number == 0:
-                mean_loss = float(np.mean(batch_losses))
+                mean_loss = 0 # float(np.mean(batch_losses)) use to eval every batch setting this to zero as its only used for printing output
                 savable_model = model.get_savable_model()
                 save_data = {
                     'epoch': epoch
@@ -79,6 +79,7 @@ def train(
 
                 save_data.update(shared_params)
                 path = save_model(savable_model, save_data)
+                elapsed = 0 # Used to eval every batch setting this to zero as its only used for printing output
                 embed_eval.evaluate(batch_num, elapsed, mean_loss, path)
 
             conf_loss = None
