@@ -19,11 +19,18 @@ class ProductManifold(RiemannianManifold):
                     submanifolds.append(RiemannianManifold.from_name_params(name, submanifold["params"]))
                 else:
                     submanifolds.append(RiemannianManifold.from_name_params(name, None))
-            return ProductManifold(submanifolds, submanifold_dims)
+
+            curvature_scale = None
+            if "curvature_scale" in params:
+                curvature_scale = params["curvature_scale"]
+                if len(curvature_scale) != len(submanifolds):
+                   raise Exception("Curvature scale must be same dimension as parameters") 
+
+            return ProductManifold(submanifolds, submanifold_dims, curvature_scale)
 
         raise Exception("Improper ProductManifold param layout")
 
-    def __init__(self, submanifolds: List[RiemannianManifold], submanifold_dims: List[int]):
+    def __init__(self, submanifolds: List[RiemannianManifold], submanifold_dims: List[int], curvature_scale=None):
         """
         Args:
             submanifolds (List[RiemannianManifold]):  List of submanifolds
@@ -32,6 +39,7 @@ class ProductManifold(RiemannianManifold):
         RiemannianManifold.__init__(self)
         self.submanifolds = submanifolds
         self.submanifold_dims = submanifold_dims
+        self.curvature_scale = curvature_scale
         # Get slices for each submanifold for easy access
         slice_start = 0
         # List of slices for each submanifold
@@ -80,7 +88,10 @@ class ProductManifold(RiemannianManifold):
             manifold = self.submanifolds[i]
             sub_x = self.get_submanifold_value_index(x, i)
             sub_y = self.get_submanifold_value_index(y, i)
-            sub_dists.append(manifold.dist(sub_x, sub_y, keepdim=False).unsqueeze(-1))
+            dist = manifold.dist(sub_x, sub_y, keepdim=False).unsqueeze(-1)
+            if self.curvature_scale is not None:
+                dist = dist / torch.exp(self.curvature_scale[i].to(dist.device) / 2)
+            sub_dists.append(dist)
         stack = torch.cat(sub_dists, dim=-1)
         return torch.norm(stack, p=None, dim=-1, keepdim=keepdim)
 
@@ -89,7 +100,8 @@ class ProductManifold(RiemannianManifold):
         for i in range(len(self.submanifolds)):
             sub_x = self.get_submanifold_value_index(x, i)
             sub_u = self.get_submanifold_value_index(u, i)
-            submanifold_values.append(self.submanifolds[i].exp(sub_x, sub_u))
+            exp_x_u = self.submanifolds[i].exp(sub_x, sub_u)
+            submanifold_values.append(exp_x_u)
 
         return self.initialize_from_submanifold_values(submanifold_values)
 
@@ -98,7 +110,8 @@ class ProductManifold(RiemannianManifold):
         for i in range(len(self.submanifolds)):
             sub_x = self.get_submanifold_value_index(x, i)
             sub_y = self.get_submanifold_value_index(y, i)
-            submanifold_values.append(self.submanifolds[i].log(sub_x, sub_y))
+            log_x_y = self.submanifolds[i].log(sub_x, sub_y)
+            submanifold_values.append(log_x_y)
 
         return self.initialize_from_submanifold_values(submanifold_values)
 
@@ -121,7 +134,21 @@ class ProductManifold(RiemannianManifold):
         for i in range(len(self.submanifolds)):
             sub_x = self.get_submanifold_value_index(x, i)
             sub_dx = self.get_submanifold_value_index(dx, i)
+            if self.curvature_scale is not None:
+                sub_dx = sub_dx * torch.exp(self.curvature_scale[i].to(sub_dx.device))
             submanifold_values.append(self.submanifolds[i].rgrad(sub_x, sub_dx))
+
+        return self.initialize_from_submanifold_values(submanifold_values)
+
+
+    def lower_indices(self, x, dx):
+        submanifold_values = []
+        for i in range(len(self.submanifolds)):
+            sub_x = self.get_submanifold_value_index(x, i)
+            sub_dx = self.get_submanifold_value_index(dx, i)
+            if self.curvature_scale is not None:
+                sub_dx = sub_dx / torch.exp(self.curvature_scale[i].to(sub_dx.device))
+            submanifold_values.append(self.submanifolds[i].lower_indices(sub_x, sub_dx))
 
         return self.initialize_from_submanifold_values(submanifold_values)
 
@@ -129,6 +156,8 @@ class ProductManifold(RiemannianManifold):
         for i in range(len(self.submanifolds)):
             sub_x = self.get_submanifold_value_index(x, i)
             sub_dx = self.get_submanifold_value_index(dx, i)
+            if self.curvature_scale is not None:
+                sub_dx *= torch.exp(self.curvature_scale[i].to(sub_dx.device))
             self.submanifolds[i].rgrad_(sub_x, sub_dx)
         return dx
     
@@ -145,7 +174,10 @@ class ProductManifold(RiemannianManifold):
         for i in range(len(self.submanifolds)):
             sub_slice = self.slices[i]
             sub_matrix = metric_tensor.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
-            sub_matrix.copy_(self.submanifolds[i].get_metric_tensor(self.get_submanifold_value_index(x, i)))
+            sub_metric = self.submanifolds[i].get_metric_tensor(self.get_submanifold_value_index(x, i))
+            if self.curvature_scale is not None:
+                sub_metric = sub_metric / torch.exp(self.curvature_scale[i].detach().to(sub_metric.device))
+            sub_matrix.copy_(sub_metric)
         return metric_tensor
 
 RiemannianManifold.register_manifold(ProductManifold)

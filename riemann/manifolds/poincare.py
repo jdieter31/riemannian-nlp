@@ -142,6 +142,9 @@ class PoincareBall(RiemannianManifold):
     def rgrad_(self, x, dx):
         return dx.div_(self.lambda_x(x, keepdim=True) ** 2)
 
+    def lower_indices(self, x, dx):
+        return dx * (self.lambda_x(x, keepdim=True) ** 2)
+
     def tangent_proj_matrix(self, x):
         tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
         for i in range(len(x.size()) - 1):

@@ -4,17 +4,20 @@ import torch.multiprocessing as mp
 import json
 import torch
 
-from data.graph import eval_reconstruction
+from .data.graph import eval_reconstruction
 
-from embed_save import load_model
+from .embed_save import load_model
 
-from logging_thread import write_tensorboard, write_log
+from .logging_thread import write_tensorboard, write_log
 from embedding_evaluation.process_benchmarks import process_benchmarks
-from graph_embedding_utils import get_canonical_glove_word_featurizer, FeaturizedModelEmbedding
-from manifold_nns import compute_pole_batch
+from .graph_embedding_utils import get_canonical_glove_word_featurizer, FeaturizedModelEmbedding
+from .manifold_nns import compute_pole_batch, ManifoldNNS
+from .manifolds.schilds_ladder import schilds_ladder
 from torch.nn.functional import cosine_similarity
+from tqdm import tqdm
 
 from scipy import stats
+
 
 eval_ingredient = Ingredient('evaluation')
 
@@ -91,10 +94,11 @@ def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_proj
         
 
         if eval_mean_rank:
-            meanrank, maprank = eval_reconstruction(adj, embeddings, manifold.dist, workers=num_workers)
+            meanrank, mrr, hitsat10 = eval_reconstruction(adj, adj, embeddings, manifold.dist, workers=1, progress=True)
             lmsg.update({
                 'mean_rank': meanrank,
-                'map_rank': maprank
+                'mrr': mrr,
+                'hits@10': hitsat10
             })
 
         if featurizer is not None:
@@ -115,7 +119,8 @@ def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_proj
 
         if eval_mean_rank:
             write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-            write_tensorboard('add_scalar', ['map_rank', maprank, epoch]) 
+            write_tensorboard('add_scalar', ['mrr', mrr, epoch])
+            write_tensorboard('add_scalar', ['hits@10', hitsat10, epoch])
         write_log(f"Stats: {json.dumps(lmsg)}")
 
 
@@ -133,7 +138,7 @@ def eval_benchmark(benchmark, dist_func):
     model_dist = []
     for (word1, word2), gold_score in benchmark.items():
         gold_list.append(gold_score)
-        model_dist.append(dist_func(word1, word2))
+        model_dist.append(dist_func(word1, word2)[0].cpu().detach().numpy())
     return stats.spearmanr(model_dist, gold_list)[0]
 
 def eval_benchmark_batch(benchmark, featurizer, dist_func):
@@ -149,10 +154,114 @@ def eval_benchmark_batch(benchmark, featurizer, dist_func):
     dists = dist_func(w1_features, w2_features).detach().numpy()
     return stats.spearmanr(dists, gold_list)[0]
 
+
+def load_analogy(path):
+    syn_analogies = []
+    sem_analogies = []
+    sem = True
+    with open(path) as f:
+        line = f.readline()
+        while line:
+            if line.startswith(":"):
+                if line.startswith(": gram"):
+                    sem = False
+            else:
+                if sem:
+                    sem_analogies.append(line.split())
+                else:
+                    syn_analogies.append(line.split())
+            line = f.readline()
+    return syn_analogies, sem_analogies
+
+syn_analogies, sem_analogies = load_analogy("./data/google_analogy/questions-words.txt")
+
+def eval_analogy(model, manifold, nns=None):
+
+    with torch.no_grad():
+        embedding_matrix = model.get_embedding_matrix().cpu()
+        features = [feature.lower() for feature in model.features_list]
+        feature_set = set(features)
+        extra_vocab = []
+        extra_vecs = []
+        analogies_not_in_vocab = [0, 0]
+        skip_analogies = []
+        
+        for analogy_set in [syn_analogies, sem_analogies]:
+            for analogy in tqdm(analogy_set):
+                for word in analogy:
+                    if word.lower() not in feature_set:
+                        if model.featurizer(word.lower()) is None:
+                            skip_analogies.append(analogy)
+                            break
+
+                        extra_vocab.append(word.lower())
+                        feature_set.add(word.lower())
+                        extra_vecs.append(model.forward_featurize(word.lower()).cpu().squeeze(0))
+                            
+        vocab = features + extra_vocab
+        vocab_dict = {vocab[i] : i for i in range(len(vocab))}
+        embedding_matrix = torch.cat([embedding_matrix, torch.stack(extra_vecs)])
+
+        if nns is None:
+            manifold_nns = ManifoldNNS(embedding_matrix, manifold)
+        else:
+            manifold_nns = nns
+            nns.add_vectors(torch.stack(extra_vecs))
+
+        results = []
+        print("Evaluating analogy")
+        for analogy_set in [syn_analogies, sem_analogies]:
+
+            a1_vecs = []
+            a2_vecs = []
+            b1_vecs = []
+            
+            a1_words = []
+            a2_words = []
+            b1_words = []
+            b2_words = []
+
+            for analogy in tqdm(analogy_set):
+                if analogy in skip_analogies:
+                    continue 
+                a1_vecs.append(embedding_matrix[vocab_dict[analogy[0].lower()]])
+                a2_vecs.append(embedding_matrix[vocab_dict[analogy[1].lower()]])
+                b1_vecs.append(embedding_matrix[vocab_dict[analogy[2].lower()]])
+                a1_words.append(analogy[0].lower())
+                a2_words.append(analogy[1].lower())
+                b1_words.append(analogy[2].lower())
+                b2_words.append(analogy[3].lower())
+
+            a1_vecs = torch.stack(a1_vecs)
+            a2_vecs = torch.stack(a2_vecs)
+            b1_vecs = torch.stack(b1_vecs)
+        
+            da = manifold.log(a1_vecs, a2_vecs)
+            db = schilds_ladder(a1_vecs, b1_vecs, da, manifold)
+            b2_vecs = manifold.exp(b1_vecs, db)
+
+            _, nns = manifold_nns.knn_query_batch_vectors(b2_vecs, k=100)       
+            embeddings = embedding_matrix[nns]
+            b2_vecs_expanded = b2_vecs.unsqueeze(-2).expand_as(embeddings)
+            dists = manifold.dist(b2_vecs_expanded, embeddings)
+            sorted_dists, indices = torch.sort(dists)
+            right = 0
+            for i in range(dists.size(0)):
+                j = 0
+                feature = vocab[nns[i][indices[i][j]]].lower()
+                while (feature == a1_words[i]) or (feature == a2_words[i]) or (feature == b1_words[i]):
+                    j += 1
+                    feature = vocab[nns[i][indices[i][j]]].lower()
+                if feature == b2_words[i]:
+                    right += 1
+            
+            results.append(right/len(analogy_set))
+        return results[0], results[1]
+
 @eval_ingredient.config
 def config():
     eval_workers = 5
-    benchmarks = ['men_dev']
+    benchmarks = ['men_full', 'men_dev', 'men_test', 'ws353', 'rw', 'simlex', "simlex-q1", "simlex-q2", "simlex-q3", "simlex-q4", "mturk771"]
     eval_mean_rank = False
     tboard_projector = False
 

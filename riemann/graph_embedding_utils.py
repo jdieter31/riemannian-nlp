@@ -133,7 +133,6 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    # eigenvalues_positive = torch.clamp(eigenvalues, min=1e-5) 
     log_eig = torch.log(eigenvalues)
     return (log_eig * log_eig).sum(dim=-1)
 
@@ -332,9 +331,16 @@ class FeaturizedModelEmbedding(nn.Module):
 
     def forward_featurize(self, feature):
         if feature in self.features_list:
-            in_tensor = torch.LongTensor([self.features_list.index(feature)], device=self.input_embedding.weight.device)
+            in_tensor = torch.LongTensor([self.features_list.index(feature)])
+            in_tensor = in_tensor.to(self.input_embedding.weight.device)
             return self.forward(in_tensor)
-        featurized = torch.as_tensor(self.featurizer(feature), dtype=self.input_embedding.weight.dtype, device=self.input_embedding.weight.device)
+        feature = self.featurizer(feature)
+        if feature is None:
+            in_tensor = torch.LongTensor([0])
+            in_tensor = in_tensor.to(self.input_embedding.weight.device)
+            return self.forward(in_tensor)
+
+        featurized = torch.as_tensor([feature], dtype=self.input_embedding.weight.dtype, device=self.input_embedding.weight.device)
         return self.embedding_model(featurized)
 
     def map_to_input_embeddings(self, x):
@@ -381,7 +387,7 @@ class FeaturizedModelEmbedding(nn.Module):
 
 def get_canonical_glove_sentence_featurizer():
     embedder = GloveSentenceEmbedder.canonical()
-    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l3_normalize=False), embedder.dim
+    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l2_normalize=False), embedder.dim
 
 def get_canonical_glove_word_featurizer():
     glove = Glove.canonical()

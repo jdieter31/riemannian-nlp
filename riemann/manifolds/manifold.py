@@ -125,6 +125,12 @@ class RiemannianManifold(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def lower_indices(self, x: torch.Tensor, dx: torch.Tensor):
+        '''Raise indices of vector field by scaling by metric'''
+        
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def rgrad(self, x: torch.Tensor, dx: torch.Tensor):
         """Converts a Euclidean gradient into a Riemannian gradient at source point x
 

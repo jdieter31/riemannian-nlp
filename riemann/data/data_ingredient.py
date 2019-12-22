@@ -18,12 +18,13 @@ def config():
     n_graph_neighbors = 20
     n_manifold_neighbors = 20
     n_rand_neighbors = 5
-    batch_size = 3000
+    batch_size = 1000
     manifold_nn_k = 50
+    delimiter = "\t"
 
     # placental_mammal.n.01 -> placental mammal
-    object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    # object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
+    # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
+    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
     # object_id_to_feature_func = lambda word : str(word)
 
 @data_ingredient.capture
@@ -40,10 +41,11 @@ def load_dataset(
         symmetrize,
         graph_data_format,
         manifold_nn_k,
+        delimiter,
         object_id_to_feature_func=None):
 
     if graph_data_type == "edge":
-        idx, objects, weights = load_edge_list(path, symmetrize)
+        idx, objects, weights = load_edge_list(path, symmetrize, delimiter=delimiter)
     else:
         idx, objects, weights = load_adjacency_matrix(path, graph_data_format, symmetrize)
     features = None

@@ -1,8 +1,8 @@
 from sacred import Ingredient
-from graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer
-from manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold
-from manifold_initialization import *
-from neural import ManifoldLayer, ManifoldNetwork
+from .graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer
+from .manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold
+from .manifold_initialization import *
+from .neural import ManifoldLayer, ManifoldNetwork
 import random
 import time
 import torch
@@ -17,7 +17,7 @@ def config():
     while os.path.isfile(path + f"{i}.tch"):
         i += 1
     path += f"{i}.tch"
-    model_type = "featurized_model_manifold_network"
+    model_type = "featurized_model_manifold_logistic"
     intermediate_manifolds = [
         {
             "name": "ProductManifold",
@@ -25,45 +25,37 @@ def config():
                 "submanifolds": [
                     {
                         "name": "PoincareBall",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "PoincareBall",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "PoincareBall",
-                        "dimension": 225
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "SphericalManifold",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "SphericalManifold",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "SphericalManifold",
-                        "dimension": 225
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 225
+                        "dimension": 100
                     },
                     {
                         "name": "EuclideanManifold",
-                        "dimension": 900
+                        "dimension": 300
                     }
                 ]
             }
         }
     ]
-    intermediate_dims = [2700, 900]
+    intermediate_dims = [900]
     sparse = True
     double_precision = False
     manifold_initialization = {
@@ -80,7 +72,7 @@ def config():
             'params': [0, 1]
         }
     }
-    nonlinearity = None
+    nonlinearity = "elu"
     num_poles = 1
     tries = 10
 

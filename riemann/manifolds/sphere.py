@@ -67,7 +67,7 @@ class SphericalManifold(RiemannianManifold):
         return self.proj_(x, indices)
 
     def exp(self, x, u):
-        u = u - (x * u).sum(dim=-1, keepdim=True) * x
+        # u = u - (x * u).sum(dim=-1, keepdim=True) * x
         norm_u = u.norm(dim=-1, keepdim=True)
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
         retr = self.proj(x + u)
@@ -93,6 +93,9 @@ class SphericalManifold(RiemannianManifold):
 
     def rgrad_(self, x, dx):
         return dx.sub_((x * dx).sum(dim=-1, keepdim=True) * x)
+
+    def lower_indices(self, x, dx):
+        return dx
 
     def tangent_proj_matrix(self, x):
         tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)

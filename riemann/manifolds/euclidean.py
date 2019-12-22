@@ -42,6 +42,9 @@ class EuclideanManifold(RiemannianManifold):
     def rgrad_(self, x, dx):
         return dx
 
+    def lower_indices(self, x, dx):
+        return dx
+
     def tangent_proj_matrix(self, x):
         tangent_matrix = torch.eye(x.size()[-1], dtype=x.dtype, device=x.device)
         for i in range(len(x.size()) - 1):

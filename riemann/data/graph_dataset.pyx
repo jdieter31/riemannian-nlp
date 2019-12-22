@@ -25,7 +25,7 @@ from libc.stdio cimport printf
 import threading
 import queue
 from graph_tool.all import Graph
-from manifold_nns import ManifoldNNS
+from ..manifold_nns import ManifoldNNS
 from tqdm import tqdm
 
 # Thread safe random number generation.  libcpp doesn't expose rand_r...
@@ -101,17 +101,19 @@ cdef class BatchedDataset:
             i = i + 1
         indices[i] = current
 
-    def refresh_manifold_nn(self, manifold_embedding, manifold):
+    def refresh_manifold_nn(self, manifold_embedding, manifold, return_nns=False):
         manifold_nns = ManifoldNNS(manifold_embedding, manifold)
         print("\nQuerying near neighbors...")
-        nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.nn_workers)
+        _, nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.nn_workers)
         print("Processing near neighbor data...")
-        all_manifold_neighbors = [nns[i][0][1:].astype(np.int64) for i in range(self.N)]
+        all_manifold_neighbors = [nns[i][1:].astype(np.int64) for i in range(self.N)]
         list_size, index_size = self.get_init_size_1d_memview_numpy_list(all_manifold_neighbors)
         self.manifold_neighbors = np.concatenate(all_manifold_neighbors)
         self.manifold_neighbors_indices = np.empty([index_size], dtype=np.int64)
         self.numpy_list_to_1d_memview(all_manifold_neighbors, self.manifold_neighbors, self.manifold_neighbors_indices)
         print("Finished processing near neighbor data.")
+        if return_nns:
+            return manifold_nns
 
     cpdef initialize_graph_perms(self):
         graph_neighbor_permutations = []
