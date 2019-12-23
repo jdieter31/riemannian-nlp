@@ -240,7 +240,7 @@ def eval_analogy(model, manifold, nns=None):
             db = schilds_ladder(a1_vecs, b1_vecs, da, manifold)
             b2_vecs = manifold.exp(b1_vecs, db)
 
-            _, nns = manifold_nns.knn_query_batch_vectors(b2_vecs, k=100)       
+            _, nns = manifold_nns.knn_query_batch_vectors(b2_vecs, k=60)       
             embeddings = embedding_matrix[nns]
             b2_vecs_expanded = b2_vecs.unsqueeze(-2).expand_as(embeddings)
             dists = manifold.dist(b2_vecs_expanded, embeddings)
@@ -251,6 +251,8 @@ def eval_analogy(model, manifold, nns=None):
                 feature = vocab[nns[i][indices[i][j]]].lower()
                 while (feature == a1_words[i]) or (feature == a2_words[i]) or (feature == b1_words[i]):
                     j += 1
+                    if j >= 60:
+                        break
                     feature = vocab[nns[i][indices[i][j]]].lower()
                 if feature == b2_words[i]:
                     right += 1

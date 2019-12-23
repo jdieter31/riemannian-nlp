@@ -50,7 +50,7 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 10000
+    n_epochs = 10
     eval_every = 200
     gpu = 0
     train_threads = 1
@@ -93,7 +93,6 @@ def config():
         },
         "update_every": 1
     }
-    tensorboard_dir = "runs/360DEuclidean-0Layer"
     sample_neighbors_every = 1
     resume_training = False
 
