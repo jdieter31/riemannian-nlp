@@ -28,7 +28,7 @@ ext_modules = cythonize(extensions)
 install_requires=["Cython", 'torch', 'numpy']
 
 setup(
-    name='riemanniannlp',
+    name='riemann',
     version='0.1',
     packages=find_packages(),
     url='',
