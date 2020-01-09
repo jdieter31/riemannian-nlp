@@ -261,7 +261,7 @@ def eval_analogy(model, manifold, nns=None):
 @eval_ingredient.config
 def config():
     eval_workers = 5
-    benchmarks = ['men_full', 'men_dev', 'men_test', 'ws353', 'rw', 'simlex', "simlex-q1", "simlex-q2", "simlex-q3", "simlex-q4", "mturk771"]
+    benchmarks = []
     eval_mean_rank = False
     tboard_projector = False
 

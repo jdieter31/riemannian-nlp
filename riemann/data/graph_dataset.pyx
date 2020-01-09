@@ -24,6 +24,7 @@ from libc.stdlib cimport rand, RAND_MAX, malloc, free
 from libc.stdio cimport printf
 import threading
 import queue
+import copy
 from graph_tool.all import Graph
 from ..manifold_nns import ManifoldNNS
 from tqdm import tqdm
@@ -38,7 +39,7 @@ cdef class BatchedDataset:
     cdef public list features
     cdef public object weights
     cdef public object idx
-    cdef object manifold
+    cdef public object manifold
     cdef public int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, batch_size, current, manifold_nn_k, num_workers, nn_workers
     cdef object queue
     cdef object graph
@@ -60,6 +61,7 @@ cdef class BatchedDataset:
         self.weights = weights
         self.n_graph_neighbors = n_graph_neighbors
         self.n_manifold_neighbors = n_manifold_neighbors
+        self.n_rand_neighbors = n_rand_neighbors
         self.N = len(objects)
         self.batch_size = batch_size
         self.features = features
@@ -86,6 +88,18 @@ cdef class BatchedDataset:
         self.graph_neighbor_weights = np.concatenate(all_graph_weights)
         self.graph_neighbors_indices = np.empty([index_size], dtype=np.int64)
         self.numpy_list_to_1d_memview(all_graph_neighbors, self.graph_neighbors, self.graph_neighbors_indices)
+
+    @classmethod
+    def initialize_eval_dataset(cls, train_dataset, eval_batch_size, n_eval_neighbors, max_graph_neighbors,
+            eval_workers, eval_nn_workers, manifold_neighbors=0, eval_edges=None, eval_weights=None):
+        if eval_edges is None:
+            return BatchedDataset(train_dataset.idx, train_dataset.objects, train_dataset.weights, train_dataset.manifold,
+                    max_graph_neighbors, manifold_neighbors, n_eval_neighbors - max_graph_neighbors, eval_batch_size, eval_workers,
+                    eval_nn_workers, features=train_dataset.features)
+        else:
+            return BatchedDataset(eval_edges, train_dataset.objects, eval_weights, train_dataset.manifold,
+                    max_graph_neighbors, manifold_neighbors, n_eval_neighbors - max_graph_neighbors, eval_batch_size, eval_workers,
+                    eval_nn_workers, features=train_dataset.features)
     
     def get_init_size_1d_memview_numpy_list(self, numpy_list):
         list_size = sum(array.shape[0] for array in numpy_list)
@@ -101,8 +115,9 @@ cdef class BatchedDataset:
             i = i + 1
         indices[i] = current
 
-    def refresh_manifold_nn(self, manifold_embedding, manifold, return_nns=False):
-        manifold_nns = ManifoldNNS(manifold_embedding, manifold)
+    def refresh_manifold_nn(self, manifold_embedding, manifold, return_nns=False, manifold_nns=None):
+        if manifold_nns is None:
+            manifold_nns = ManifoldNNS(manifold_embedding, manifold)
         print("\nQuerying near neighbors...")
         _, nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.nn_workers)
         print("Processing near neighbor data...")
@@ -218,6 +233,10 @@ cdef class BatchedDataset:
             vertices[j, 0] = vertex
             neighbors_index = self.graph_neighbors_indices[vertex]
             neighbors_length = self.graph_neighbors_indices[vertex + 1] - neighbors_index
+            if neighbors_length == 0:
+                i = i + 1
+                continue
+
             k = 0
 
             extra_rand_samples = 0

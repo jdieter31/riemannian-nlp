@@ -30,7 +30,8 @@ def train(
         thread_number,
         feature_manifold,
         conformal_loss_params,
-        tensorboard_watch={}
+        tensorboard_watch={},
+        eval_data=None
         ):
 
     batch_num = 0
@@ -50,15 +51,19 @@ def train(
             with torch.no_grad():
                 model.to(device)
                 nns = data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, return_nns=True)
+                eval_data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, manifold_nns=nns)
 
+            '''
             if epoch > 1:
                 syn_acc, sem_acc = embed_eval.eval_analogy(model, manifold, nns)
                 write_tensorboard('add_scalar', ['syn_acc', syn_acc, epoch - 1])
                 write_tensorboard('add_scalar', ['sem_acc', sem_acc, epoch - 1])
+            '''
             import gc; gc.collect()
             torch.cuda.empty_cache()
 
         data_iterator = tqdm(data) if thread_number == 0 else data
+
 
         for batch in data_iterator:
             if batch_num % eval_every == 0 and thread_number == 0:
@@ -81,6 +86,45 @@ def train(
                 path = save_model(savable_model, save_data)
                 elapsed = 0 # Used to eval every batch setting this to zero as its only used for printing output
                 embed_eval.evaluate(batch_num, elapsed, mean_loss, path)
+                if eval_data is not None:
+                    with torch.no_grad():
+                        hitsat10 = 0
+                        rank_sum = 0
+                        rec_rank_sum = 0
+                        num_ranks = 0
+                        for eval_batch in tqdm(eval_data):
+                            inputs, graph_dists = eval_batch
+                            inputs = inputs.to(device)
+                            graph_dists = graph_dists.to(device)
+                            
+                            input_embeddings = model(inputs)
+
+                            sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
+                            main_vertices = input_embeddings.narrow(1, 0, 1).expand_as(sample_vertices)
+                            manifold_dists = manifold.dist(main_vertices, sample_vertices)
+
+                            sorted_indices = manifold_dists.argsort(dim=-1)
+                            manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
+                            n_neighbors = (graph_dists < 2).sum(dim=-1)
+                            batch_nums, neighbor_ranks = (sorted_indices < n_neighbors.unsqueeze(1)).nonzero(as_tuple=True)
+                            neighbor_ranks += 1
+
+                            adjust_indices = torch.arange(n_neighbors.max())
+                            neighbor_adjustements = torch.cat([adjust_indices[:n_neighbors[i]] for i in range(n_neighbors.size(0))])
+                            neighbor_ranks -= neighbor_adjustements.to(device)
+                            neighbor_ranks = neighbor_ranks.float()
+                            rec_ranks = 1 / neighbor_ranks 
+                            hitsat10 += (neighbor_ranks <= 10).sum().cpu().numpy()
+                            rank_sum += neighbor_ranks.sum().cpu().numpy()
+                            rec_rank_sum += rec_ranks.sum().cpu().numpy()
+                            num_ranks += neighbor_ranks.size(0)
+                        mean_rank = rank_sum / num_ranks
+                        mean_rec_rank = rec_rank_sum / num_ranks
+                        hitsat10 = hitsat10 / num_ranks
+
+                        write_tensorboard('add_scalar', ['mean_rank', mean_rank, batch_num])
+                        write_tensorboard('add_scalar', ['mean_rec_rank', mean_rec_rank, batch_num])
+                        write_tensorboard('add_scalar', ['hitsat10', hitsat10, batch_num])
 
             conf_loss = None
             delta_loss = None
@@ -136,7 +180,7 @@ def train(
                         for p in model.additional_deltas.parameters():
                             p.requires_grad = True
             '''
-            loss = 0.5 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
+            loss = manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
 
             if optimizing_model and hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
                 main_inputs = inputs.narrow(1, 0, 1).squeeze(1).clone().detach()

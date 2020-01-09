@@ -14,8 +14,8 @@ def config():
             lr_durations and remains constant at the last lr
     """
     schedule_type = "constant"
-    base_lr = 0.01
-    fixed_embedding_lr = 0.01
+    base_lr = 4
+    fixed_embedding_lr = 4
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 

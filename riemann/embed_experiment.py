@@ -21,6 +21,8 @@ from .lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr, 
 from torch.distributions import uniform
 from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 
+from data.graph_dataset import BatchedDataset
+
 import numpy as np
 
 import torch.multiprocessing as mp
@@ -50,25 +52,25 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 10000
-    eval_every = 200
+    n_epochs = 1000
+    eval_every = 1000
     gpu = 0
     train_threads = 1
-    embed_manifold_name = "EuclideanManifold"
-    embed_manifold_dim = 360
+    embed_manifold_name = "ProductManifold"
+    embed_manifold_dim = 100
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 120
+                "dimension" : 33
             },
             {
                 "name" : "SphericalManifold",
-                "dimension" : 120
+                "dimension" : 34
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 120
+                "dimension" : 33
             }
         ]
     }
@@ -93,9 +95,9 @@ def config():
         },
         "update_every": 1
     }
-    tensorboard_dir = "runs/360DEuclidean-0Layer"
     sample_neighbors_every = 1
     resume_training = False
+    
 
 @ex.command
 def embed(
@@ -129,7 +131,7 @@ def embed(
             "hyper_scale": curvature_scale[0],
             "sphere_scale": curvature_scale[1]
             }
-    data = load_dataset(embed_manifold)
+    data, eval_data = load_dataset(embed_manifold)
     embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data))
     if resume_training:
         model, save_data = load_model()
@@ -161,14 +163,17 @@ def embed(
             ], lr=get_base_lr(), adam_for_euc=False)
         # optimizer = RiemannianSGD(list(model.get_savable_model().parameters()) + list(model.get_additional_embeddings().parameters()) + curvature_scale[1:], lr=get_base_lr(), adam_for_euc=False)
     else:
-        optimizer = RiemannianSGD(model.parameters(), lr=get_base_lr(), adam_for_euc=False)
+        optimizer = RiemannianSGD([
+                {'params': model.parameters()},
+                {'params': curvature_scale[:2], 'lr':0.001}
+            ], lr=get_base_lr(), adam_for_euc=False)
     lr_scheduler = get_lr_scheduler(optimizer)
     
     threads = []
     if train_threads > 1:
         try:
             for i in range(train_threads):
-                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, i, feature_manifold, conformal_loss_params, tensorboard_watch]
+                args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, i, feature_manifold, conformal_loss_params, tensorboard_watch, eval_data]
                 threads.append(mp.Process(target=train, args=args))
                 threads[-1].start()
 
@@ -184,7 +189,7 @@ def embed(
             logging_thread.close_thread(wait_to_finish=True)
 
     else:
-        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, 0, feature_manifold, conformal_loss_params, tensorboard_watch]
+        args = [device, model, embed_manifold, embed_manifold_dim, data, optimizer, loss_params, n_epochs, eval_every, sample_neighbors_every, lr_scheduler, shared_params, 0, feature_manifold, conformal_loss_params, tensorboard_watch, eval_data]
         try:
             train(*args)
         finally:
