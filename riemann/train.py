@@ -5,6 +5,7 @@ from . import embed_eval
 from .embed_save import save_model
 import timeit
 import numpy as np
+from math import ceil
 from tqdm import tqdm
 from .logging_thread import write_tensorboard
 from .graph_embedding_utils import manifold_dist_loss_relu_sum, metric_loss
@@ -13,6 +14,12 @@ from .manifolds import EuclideanManifold
 from .manifold_tensors import ManifoldParameter
 
 import random
+
+# This controls how frequently the whole batch is iterated over vs only
+# {QUICK_EVAL_PERCENT} of the data
+QUICK_EVAL_FREQUENCY = 10
+QUICK_EVAL_PERCENT = 0.05
+QUICK_EVAL_TRAIN_PERCENT = 0.025
 
 def train(
         device,
@@ -64,8 +71,8 @@ def train(
 
         data_iterator = tqdm(data) if thread_number == 0 else data
 
-
         for batch in data_iterator:
+
             if batch_num % eval_every == 0 and thread_number == 0:
                 mean_loss = 0 # float(np.mean(batch_losses)) use to eval every batch setting this to zero as its only used for printing output
                 savable_model = model.get_savable_model()
@@ -92,6 +99,15 @@ def train(
                         rank_sum = 0
                         rec_rank_sum = 0
                         num_ranks = 0
+
+                        if QUICK_EVAL_FREQUENCY > 0 and batch_num % (eval_every * QUICK_EVAL_FREQUENCY) == 0:
+                            eval_data.data_fraction = 1
+                            total_eval = True
+                        else:
+                            eval_data.data_fraction = QUICK_EVAL_PERCENT
+                            total_eval = False
+                        eval_data.compute_train_ranks = False
+
                         for eval_batch in tqdm(eval_data):
                             inputs, graph_dists = eval_batch
                             inputs = inputs.to(device)
@@ -118,13 +134,61 @@ def train(
                             rank_sum += neighbor_ranks.sum().cpu().numpy()
                             rec_rank_sum += rec_ranks.sum().cpu().numpy()
                             num_ranks += neighbor_ranks.size(0)
+
                         mean_rank = rank_sum / num_ranks
                         mean_rec_rank = rec_rank_sum / num_ranks
                         hitsat10 = hitsat10 / num_ranks
 
-                        write_tensorboard('add_scalar', ['mean_rank', mean_rank, batch_num])
-                        write_tensorboard('add_scalar', ['mean_rec_rank', mean_rec_rank, batch_num])
-                        write_tensorboard('add_scalar', ['hitsat10', hitsat10, batch_num])
+                        postfix = "_approx"
+                        if total_eval:
+                            postfix = ""
+
+                        write_tensorboard('add_scalar', [f'mean_rank{postfix}', mean_rank, batch_num])
+                        write_tensorboard('add_scalar', [f'mean_rec_rank{postfix}', mean_rec_rank, batch_num])
+                        write_tensorboard('add_scalar', [f'hitsat10{postfix}', hitsat10, batch_num])
+
+                        if eval_data.is_eval:
+                            hitsat10 = 0
+                            rank_sum = 0
+                            rec_rank_sum = 0
+                            num_ranks = 0
+                            
+                            eval_data.data_fraction = QUICK_EVAL_TRAIN_PERCENT
+                            eval_data.compute_train_ranks = True
+                            for eval_batch in tqdm(eval_data):
+                                inputs, graph_dists = eval_batch
+                                inputs = inputs.to(device)
+                                graph_dists = graph_dists.to(device)
+                                
+                                input_embeddings = model(inputs)
+
+                                sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
+                                main_vertices = input_embeddings.narrow(1, 0, 1).expand_as(sample_vertices)
+                                manifold_dists = manifold.dist(main_vertices, sample_vertices)
+
+                                sorted_indices = manifold_dists.argsort(dim=-1)
+                                manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
+                                n_neighbors = (graph_dists < 2).sum(dim=-1)
+                                batch_nums, neighbor_ranks = (sorted_indices < n_neighbors.unsqueeze(1)).nonzero(as_tuple=True)
+                                neighbor_ranks += 1
+
+                                adjust_indices = torch.arange(n_neighbors.max())
+                                neighbor_adjustements = torch.cat([adjust_indices[:n_neighbors[i]] for i in range(n_neighbors.size(0))])
+                                neighbor_ranks -= neighbor_adjustements.to(device)
+                                neighbor_ranks = neighbor_ranks.float()
+                                rec_ranks = 1 / neighbor_ranks 
+                                hitsat10 += (neighbor_ranks <= 10).sum().cpu().numpy()
+                                rank_sum += neighbor_ranks.sum().cpu().numpy()
+                                rec_rank_sum += rec_ranks.sum().cpu().numpy()
+                                num_ranks += neighbor_ranks.size(0)
+
+                            mean_rank = rank_sum / num_ranks
+                            mean_rec_rank = rec_rank_sum / num_ranks
+                            hitsat10 = hitsat10 / num_ranks
+
+                            write_tensorboard('add_scalar', [f'mean_rank_train', mean_rank, batch_num])
+                            write_tensorboard('add_scalar', [f'mean_rec_rank_train', mean_rec_rank, batch_num])
+                            write_tensorboard('add_scalar', [f'hitsat10_train', hitsat10, batch_num])
 
             conf_loss = None
             delta_loss = None

@@ -18,16 +18,16 @@ def config():
     num_workers = 5
     nn_workers = 25
     n_graph_neighbors = 20
-    n_manifold_neighbors = 20
-    n_rand_neighbors = 5
-    batch_size = 5000
-    manifold_nn_k = 50
+    n_manifold_neighbors = 50
+    n_rand_neighbors = 50
+    batch_size = 30000
+    manifold_nn_k = 100
     delimiter = "\t"
 
     make_eval_split = True
     split_seed = 14534432
     split_size = 0.25
-    eval_batch_size = 100
+    eval_batch_size = 800
     n_eval_neighbors = 10000
     max_eval_graph_neighbors = 5000
     eval_manifold_neighbors = 50

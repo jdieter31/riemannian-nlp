@@ -52,13 +52,8 @@ ex.logger = logger
 
 @ex.config
 def config():
-<<<<<<< HEAD
     n_epochs = 1000
-    eval_every = 1000
-=======
-    n_epochs = 10
-    eval_every = 200
->>>>>>> bcaa0590a6be22e1cd2103dd12835400f35f170d
+    eval_every = 2000
     gpu = 0
     train_threads = 1
     embed_manifold_name = "ProductManifold"
@@ -100,7 +95,7 @@ def config():
         },
         "update_every": 1
     }
-    sample_neighbors_every = 1
+    sample_neighbors_every = 60
     resume_training = False
     
 
@@ -121,7 +116,6 @@ def embed(
         resume_training,
         _log
         ):
-
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
     torch.set_num_threads(1)
 

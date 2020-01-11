@@ -29,7 +29,7 @@ class ManifoldNNS:
         params.set_index_parameter(self.index, 'nprobe', 100)
         params.initialize(self.index)
 
-        num_blocks = 50
+        num_blocks = 200
         block_size = ceil(data_points.size(0) / num_blocks)
         num_blocks = ceil(data_points.size(0) / block_size)
         self.data_embedding = data_points

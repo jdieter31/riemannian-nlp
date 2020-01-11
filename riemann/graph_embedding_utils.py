@@ -43,7 +43,8 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
 
     sorted_indices = train_distances.argsort(dim=-1)
     manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
-    manifold_dists_sorted.add_(EPSILON).log_()
+    #manifold_dists_sorted.add_(EPSILON).log_()
+    manifold_dists_sorted = manifold_dists_sorted ** 2
     diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1], manifold_dists.size()[1]]
     row_expanded = manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
     column_expanded = manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
