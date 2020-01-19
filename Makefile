@@ -11,12 +11,13 @@ https://git.skewed.de/count0/graph-tool/wikis/installation-instructions")
 endif
 
 # try to get the python root from poetry 
-PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
-ifeq (${PYTHONROOT},)
-$(error "Could not find a poetry virtual environment. \
-Make sure you have poetry installed and have run `poetry install` at \
-least once.")
-endif
+PYTHONROOT := ".venv"
+# PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
+# ifeq (${PYTHONROOT},)
+# $(error "Could not find a poetry virtual environment. \
+# Make sure you have poetry installed and have run `poetry install` at \
+# least once.")
+# endif
 
 all: graph-tool-installed poetry-installed
 	
@@ -30,5 +31,22 @@ graph-tool-installed: $(PYTHONROOT)/lib/python3.7/site-packages/graph_tool
 $(PYTHONROOT)/lib/python3.7/site-packages/graph_tool:
 	ln -s ${GRAPH_TOOL} $@
 
-.PHONY: graph-tool-installed poetry-installed
+.venv/bin/python3:
+	$(error "Please run 'poetry install' to setup your own virtual \
+	environment")
 
+poetry.lock: pyproject.toml
+	poetry update
+
+# Create a conda environment that matches our pip environment
+.spell-conda.yml: pyproject.toml poetry.lock | .venv/bin/python3
+	bin/build_spell_env.sh $@
+
+
+# A Spell-specific set of compilation steps
+# Mostly, this builds the Cython files.
+compile-in-spell:
+	python3 build.py build_ext --inplace
+
+
+.PHONY: graph-tool-installed poetry-installed compile-in-spell

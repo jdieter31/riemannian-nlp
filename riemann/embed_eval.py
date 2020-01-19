@@ -1,6 +1,7 @@
 from sacred import Ingredient
 import torch.multiprocessing as mp
 
+import os
 import json
 import torch
 
@@ -173,9 +174,14 @@ def load_analogy(path):
             line = f.readline()
     return syn_analogies, sem_analogies
 
-syn_analogies, sem_analogies = load_analogy("./data/google_analogy/questions-words.txt")
+
+root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..")
+syn_analogies, sem_analogies = None, None
 
 def eval_analogy(model, manifold, nns=None):
+    global syn_analogies, sem_analogies
+    if syn_analogies is None or sem_analogies is None:
+        syn_analogies, sem_analogies = load_analogy(os.path.join(root_path, "data/google_analogy/questions-words.txt"))
 
     with torch.no_grad():
         embedding_matrix = model.get_embedding_matrix().cpu()

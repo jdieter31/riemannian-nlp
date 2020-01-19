@@ -1,15 +1,16 @@
 import torch.multiprocessing as mp
-from torch.utils.tensorboard import SummaryWriter
+from .utils import ProxyWriter
 
 log_queue = None
 process = None
+
 
 def async_log(tensorboard_dir, log):
     global log_queue
     if log_queue is None or log is None:
         return
     finished = False
-    tensorboard_writer = SummaryWriter(tensorboard_dir)
+    tensorboard_writer = ProxyWriter(tensorboard_dir)
 
     while True:
         if finished and log_queue.empty():
@@ -22,13 +23,14 @@ def async_log(tensorboard_dir, log):
         if temp == "finish":
             finished = True
             continue
-        
+
         if temp[0] == "tensorboard":
             function, args = temp[1:]
             getattr(tensorboard_writer, function)(*args)
-            tensorboard_writer._get_file_writer().flush()
+            tensorboard_writer.flush()
         elif temp[0] == "log":
             log.info(temp[1])
+
 
 def initialize(tensorboard_dir, log):
     global log_queue
@@ -37,13 +39,16 @@ def initialize(tensorboard_dir, log):
     process = mp.Process(target=async_log, args=[tensorboard_dir, log])
     process.start()
 
+
 def write_tensorboard(func, args):
     global log_queue
     log_queue.put(("tensorboard", func, args))
 
+
 def write_log(message):
     global log_queue
     log_queue.put(("log", message))
+
 
 def close_thread(wait_to_finish=False):
     global process
@@ -58,4 +63,3 @@ def close_thread(wait_to_finish=False):
                 process.close()
         except:
             process.terminate()
-

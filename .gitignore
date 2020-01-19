@@ -101,6 +101,9 @@ ENV/
 # mypy
 .mypy_cache/
 
+# intellij
+*.ipr
+
 # graph-tool
 graph-tool-2.29.tar.bz2
 graph-tool-2.29/**
@@ -109,3 +112,11 @@ graph-tool-2.29/**
 experiments/
 runs/
 models/
+
+# Common data and resources
+resources
+data
+
+#
+.spell-conda.yml
+

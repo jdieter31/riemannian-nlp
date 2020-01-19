@@ -9,7 +9,8 @@ import numpy as np
 
 from .token_mapper import TokenMapper, default_token_mapper, HashTokenMapping
 
-default_glove_path= os.path.dirname(os.path.realpath(__file__)) + '/../resources/glove.840B.300d.zip'
+root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
+default_glove_path = os.path.join(root_path, 'resources/glove.840B.300d.zip')
 
 class Glove:
     def __init__(

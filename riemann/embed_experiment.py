@@ -21,7 +21,7 @@ from .lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr, 
 from torch.distributions import uniform
 from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 
-from data.graph_dataset import BatchedDataset
+from .data.graph_dataset import BatchedDataset
 
 import numpy as np
 

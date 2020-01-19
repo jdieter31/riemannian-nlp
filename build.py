@@ -1,11 +1,12 @@
 import os
 import sys
 
+import re
 import sysconfig
 from subprocess import check_output
 from Cython.Build import cythonize
-from setuptools import Extension
-import numpy as np
+from setuptools import Extension, setup
+import numpy
 
 def is_clang():
     """
@@ -35,5 +36,10 @@ def build(setup_kwargs):
 
     setup_kwargs.update({
         'ext_modules' : ext_modules,
-        'include_dirs' : [np.get_include()],
+        'include_dirs' : [numpy.get_include()],
     })
+
+if __name__ == "__main__":
+    setup_kwargs = {}
+    build(setup_kwargs)
+    setup(**setup_kwargs)
