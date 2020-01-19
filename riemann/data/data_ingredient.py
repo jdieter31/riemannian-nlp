@@ -11,20 +11,20 @@ data_ingredient = Ingredient("dataset")
 @data_ingredient.config
 def config():
     # path = "data/enwiki-2013.txt"
-    path = "data/live_journal.csv"
+    path = "data/concept_net_en_weighted.csv"
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
     num_workers = 5
     nn_workers = 25
     n_graph_neighbors = 20
-    n_manifold_neighbors = 50
-    n_rand_neighbors = 50
-    batch_size = 30000
-    manifold_nn_k = 100
+    n_manifold_neighbors = 20
+    n_rand_neighbors = 5
+    batch_size = 1000
+    manifold_nn_k = 50
     delimiter = "\t"
 
-    make_eval_split = True
+    make_eval_split = False
     split_seed = 14534432
     split_size = 0.25
     eval_batch_size = 800
@@ -37,7 +37,7 @@ def config():
 
     # placental_mammal.n.01 -> placental mammal
     # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    # object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
+    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
     # object_id_to_feature_func = lambda word : str(word)
 
 @data_ingredient.capture
@@ -118,7 +118,7 @@ def load_dataset(
             num_workers,
             nn_workers,
             manifold_nn_k,
-            features)
+            features), None
 
 def get_adjacency_dict(data):
     adj = {}

@@ -58,14 +58,14 @@ def train(
             with torch.no_grad():
                 model.to(device)
                 nns = data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, return_nns=True)
-                eval_data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, manifold_nns=nns)
+                if eval_data is not None:
+                    eval_data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, manifold_nns=nns)
 
-            '''
             if epoch > 1:
                 syn_acc, sem_acc = embed_eval.eval_analogy(model, manifold, nns)
                 write_tensorboard('add_scalar', ['syn_acc', syn_acc, epoch - 1])
                 write_tensorboard('add_scalar', ['sem_acc', sem_acc, epoch - 1])
-            '''
+
             import gc; gc.collect()
             torch.cuda.empty_cache()
 
@@ -261,6 +261,7 @@ def train(
                 mean_deltas = torch.mean(torch.norm(vals, dim=-1))
                 delta_loss = 800 * torch.mean(torch.norm(vals, dim=-1) ** 2)
 
+            total_loss = None
             if conformal_loss_params is not None and conf_loss is not None:
                 total_loss = (1 - conformal_loss_params["weight"]) * loss + conformal_loss_params["weight"] * conf_loss
                 if delta_loss is not None:
@@ -282,6 +283,8 @@ def train(
             batch_losses.append(loss.cpu().detach().numpy())
             if thread_number == 0:
                 write_tensorboard('add_scalar', ['minibatch_loss', batch_losses[-1], batch_num])
+                if total_loss is not None:
+                    write_tensorboard('add_scalar', ['minibatch_total_loss', total_loss.cpu().detach().numpy(), batch_num])
 
                 if delta_loss is not None:
                     write_tensorboard('add_scalar', ['minibatch_delta_loss', delta_loss.cpu().detach().numpy(), batch_num])

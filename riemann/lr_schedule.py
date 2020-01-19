@@ -1,5 +1,6 @@
 from sacred import Ingredient
 from torch.optim.lr_scheduler import LambdaLR
+from math import sqrt
 
 lr_schedule_ingredient = Ingredient("lr_schedule")
 
@@ -13,23 +14,27 @@ def config():
         fixed_schedule - Iterates through scheduled_lrs over durations specified in
             lr_durations and remains constant at the last lr
     """
-    schedule_type = "constant"
-    base_lr = 3
-    fixed_embedding_lr = 3
+    schedule_type = "decay"
+    base_lr = 0.001
+    fixed_embedding_lr = 0.001
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 
     scheduled_lrs = [0.001, 0.003, 0.001]
     lr_durations = [3, 3]
+    decay_rate = 20
 
 @lr_schedule_ingredient.capture
-def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durations):
+def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durations, decay_rate):
     if schedule_type == "constant":
         return LambdaLR(optimizer, lambda epoch: 1)
     elif schedule_type == "linear" or schedule_type == "fixed_schedule":
         return LambdaLR(optimizer,
                 lambda epoch: get_lr_from_schedule(epoch, scheduled_lrs, lr_durations,
                     linear_interpolate = (schedule_type == "linear")))
+    elif schedule_type == "decay":
+        return LambdaLR(optimizer, lambda epoch: 1/sqrt(1 + decay_rate * epoch))
+
 
 @lr_schedule_ingredient.capture
 def get_base_lr(base_lr):

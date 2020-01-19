@@ -52,12 +52,12 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 1000
-    eval_every = 2000
+    n_epochs = 10
+    eval_every = 200
     gpu = 0
     train_threads = 1
-    embed_manifold_name = "ProductManifold"
-    embed_manifold_dim = 100
+    embed_manifold_name = "EuclideanManifold"
+    embed_manifold_dim = 360
     embed_manifold_params = {
        "submanifolds": [
             {
@@ -83,7 +83,7 @@ def config():
         "discount_factor": 0.5
     }
     conformal_loss_params = {
-        "weight": 0.5,
+        "weight": 0.96,
         "num_samples": 15,
         "isometric": True,
         "random_samples": 15,
@@ -95,7 +95,7 @@ def config():
         },
         "update_every": 1
     }
-    sample_neighbors_every = 60
+    sample_neighbors_every = 1
     resume_training = False
     
 
