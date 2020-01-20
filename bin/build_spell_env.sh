@@ -22,7 +22,7 @@ output=$1;
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "${DIR}/.."
 
-PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
+PYTHONROOT=$(poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
 if [ ! -d $PYTHONROOT ]; then
   echo 'Missing virtual environment in $PYTHONROOT.'
   exit 1;
