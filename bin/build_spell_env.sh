@@ -22,8 +22,9 @@ output=$1;
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "${DIR}/.."
 
-if [ ! -d .venv/ ]; then
-  echo 'Missing virtual environment in .venv.'
+PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
+if [ ! -d $PYTHONROOT ]; then
+  echo 'Missing virtual environment in $PYTHONROOT.'
   exit 1;
 fi;
 
@@ -53,7 +54,7 @@ dependencies:
     - spell
 EOF
 # 2. Add all the dependencies from pip (except those in the blacklist)
-.venv/bin/pip freeze | grep -Ev $(echo $BLACKLIST | sed 's/ /|/g') | sed 's/^/    - /' >> $output;
+$PYTHONROOT/bin/pip freeze | grep -Ev $(echo $BLACKLIST | sed 's/ /|/g') | sed 's/^/    - /' >> $output;
 
 # 3. Add any additional dependencies
 for dep in ${EXTRAS[@]}; do

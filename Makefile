@@ -30,7 +30,7 @@ graph-tool-installed: $(PYTHONROOT)/lib/python3.7/site-packages/graph_tool
 $(PYTHONROOT)/lib/python3.7/site-packages/graph_tool:
 	ln -s ${GRAPH_TOOL} $@
 
-.venv/bin/python3:
+$(PYTHONROOT)/bin/python3:
 	$(error "Please run 'poetry install' to setup your own virtual \
 	environment")
 
@@ -38,7 +38,7 @@ poetry.lock: pyproject.toml
 	poetry update
 
 # Create a conda environment that matches our pip environment
-.spell-conda.yml: pyproject.toml poetry.lock | .venv/bin/python3
+.spell-conda.yml: pyproject.toml poetry.lock | $(PYTHONROOT)/bin/python3
 	bin/build_spell_env.sh $@
 
 
