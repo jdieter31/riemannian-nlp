@@ -9,7 +9,6 @@ repository = "https://github.com/jdieter31/riemannian-nlp"
 homepage = "https://github.com/jdieter31/riemannian-nlp"
 # Custom build file to handle Cython
 build = 'build.py'
-settings.virtualenvs.in-project = true
 
 [tool.poetry.dependencies]
 # Basic requirements for the platform
