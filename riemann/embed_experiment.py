@@ -76,8 +76,7 @@ def config():
     }
     sparse = True
     now = datetime.now()
-    tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
-    tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
+    tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D-{now:-%m:%d:%Y-%H:%M:%S}"
     loss_params = {
         "margin": 0.001,
         "discount_factor": 0.5
