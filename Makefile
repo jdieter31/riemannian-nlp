@@ -11,8 +11,7 @@ https://git.skewed.de/count0/graph-tool/wikis/installation-instructions")
 endif
 
 # try to get the python root from poetry 
-PYTHONROOT := ".venv"
-# PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
+PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
 # ifeq (${PYTHONROOT},)
 # $(error "Could not find a poetry virtual environment. \
 # Make sure you have poetry installed and have run `poetry install` at \
