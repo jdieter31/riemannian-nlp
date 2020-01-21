@@ -1,3 +1,4 @@
+import os
 from sacred import Ingredient
 from math import floor
 
@@ -6,12 +7,14 @@ from .graph import load_edge_list, load_adjacency_matrix
 from .graph_dataset import BatchedDataset
 import numpy as np
 
+root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
+
 data_ingredient = Ingredient("dataset")
 
 @data_ingredient.config
 def config():
     # path = "data/enwiki-2013.txt"
-    path = "data/concept_net_en_weighted.csv"
+    path = os.path.join(root_path, "data/concept_net_en_weighted.csv")
     graph_data_type = "edge"
     graph_data_format = "hdf5"
     symmetrize = False
@@ -34,11 +37,8 @@ def config():
     eval_workers = 2
     eval_nn_workers = 1
 
-
-    # placental_mammal.n.01 -> placental mammal
-    # object_id_to_feature_func = lambda word_id : ' '.join(word_id.split('.')[0].split('_'))
-    object_id_to_feature_func = lambda word : ' '.join(word.split('_'))
-    # object_id_to_feature_func = lambda word : str(word)
+    # Valid values are conceptnet, wordnet,
+    object_id_to_feature_func = "conceptnet"
 
 @data_ingredient.capture
 def load_dataset(
@@ -70,9 +70,18 @@ def load_dataset(
         idx, objects, weights = load_edge_list(path, symmetrize, delimiter=delimiter)
     else:
         idx, objects, weights = load_adjacency_matrix(path, graph_data_format, symmetrize)
-    features = None
-    if object_id_to_feature_func is not None:
-        features = [object_id_to_feature_func(object_id) for object_id in objects]
+
+    # define a feature function
+    if object_id_to_feature_func == "conceptnet":
+        features = [' '.join(object_id.split('_')) for object_id in objects]
+    elif object_id_to_feature_func == "wordnet":
+        # placental_mammal.n.01 -> placental mammal
+        features = [' '.join(object_id.split('.')[0].split('_')) for object_id in objects]
+    elif object_id_to_feature_func == "id":
+        # xyz -> xyz
+        features = [object_id for object_id in objects]
+    else:
+        features = None
 
     if make_eval_split:
         np.random.seed(split_seed)

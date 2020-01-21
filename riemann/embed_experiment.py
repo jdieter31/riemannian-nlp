@@ -21,7 +21,7 @@ from .lr_schedule import lr_schedule_ingredient, get_lr_scheduler, get_base_lr, 
 from torch.distributions import uniform
 from torch.optim.lr_scheduler import ReduceLROnPlateau, LambdaLR
 
-from data.graph_dataset import BatchedDataset
+from .data.graph_dataset import BatchedDataset
 
 import numpy as np
 
@@ -76,8 +76,7 @@ def config():
     }
     sparse = True
     now = datetime.now()
-    tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D"
-    tensorboard_dir += now.strftime("-%m:%d:%Y-%H:%M:%S")
+    tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D-{now:-%m:%d:%Y-%H:%M:%S}"
     loss_params = {
         "margin": 0.001,
         "discount_factor": 0.5

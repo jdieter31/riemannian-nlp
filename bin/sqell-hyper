@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# Run spell hypersearch.
+# 
+# This script wraps a python command appropriately to invoke on Spell.
+#
+# NOTE: In order for the spell invocation to work, all paths must be
+# _relative_.
+#
+# The script respects the following environment variables:
+# - SPELL_MACHINE: specifies which machine type will be used. By
+#   default, this is 'k80' (a standard GPU machine).
+# - SPELL_MOUNTS: specifies which buckets will be mounted in the Spell
+#   image. Defaults to '-m public-data/riemann:/spell/riemannian-nlp/data -m
+#   resources:/spell/riemannian-nlp/resources'
+# - SPELL_PARAMS: Required to specify parameters for hyper-parameter
+#   search
+# - SPELL_OPTS: specifies any additional spell options.
+# - SPELL_DEBUG: if set, print debugging information about arguments we
+#   call with.
+#
+# A typical SPELL_PARAMS will look like
+# '-n <number-of-runs> -p <param-name>:start:end:[log|linear]'
+# which tells spell to run <number-of-runs> by sampling <param-name>
+# using either a uniform or log-uniform distribution in the range
+# (start, end). When run, Spell will replace any instances of
+# `:param-name:` with a sampled value. As an indicative example:
+#
+#   SPELL_PARAMS="-n 5 -p lr=0:1:linear" sqell-hyper echo.py :lr:
+# 
+# would be identical to running::
+#   sqell echo.py 0.0
+#   sqell echo.py 0.4
+#   sqell echo.py 0.2
+#   sqell echo.py 0.8
+#   sqell echo.py 0.3
+#
+# For more see: https://spell.run/docs/hyper_searches
+#
+# An example invocation (with more verbose flags):
+#   $> cd riemann/;
+#   $> SPELL_PARAMS="--num-runs 5 --param lr=0.001:1.0:log --param dropout=0.1:0.9:linear" \
+#   sqell-hyper -m rieman.embed_experiment embed with lr=:lr:
+#   dropout=:dropout:
+
+set -o errexit
+
+if [ -z "${SPELL_PARAMS:-}" ]; then
+  echo "You must set \$SPELL_PARAMS to specify which hyper-parameters to search.
+For example, try SPELL_PARAMS='--num-runs 10 --param lr=0.01:1:linear'";
+  exit 1;
+fi;
+
+if [[ $# == 0 ]]; then
+  echo "Please provide a command to run with python.
+For example, try '$0 -V'";
+  exit 1;
+fi;
+
+# Enter the pynlp directory. This makes this script safe to call from anywhere.
+# Directory magic from here: https://stackoverflow.com/questions/59895/get-the-source-directory-of-a-bash-script-from-within-the-script-itself
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+ROOT="${SCRIPT_DIR}/.."
+
+if [[ ${BASH_VERSINFO[0]} != 5 ]]; then
+  echo "This script only works with bash 5+."
+  if [[ $(uname) == Darwin ]]; then
+    echo "The default version of bash installed on macOS is 3, which is
+    ancient and doesn't support parameter quote escaping \${args[@]@Q}.
+    Please install a modern version of bash by running 'brew install
+    bash'";
+  fi;
+  exit 1;
+fi;
+
+SPELL_ROOT='/spell/riemannian-nlp'
+
+# FAISS needs libomp to run.
+apt_dependencies='--apt libomp-dev'
+
+# Convert args into an array: this is use with quote escaping below:
+# ${args[@]@Q} to make sure arguments are correctly parsed on the
+# remote.
+args=("$@");
+# Replace STATE_DIR WITH SPELL_ROOT
+args=("${args[@]//STATE_DIR/$SPELL_ROOT\/state}");
+
+if [ -n ${SPELL_DEBUG:-} ]; then
+  $ROOT/bin/arglist.sh "${args[@]@Q}";
+fi;
+
+# Make sure we have an up-to-date Conda file to setup the right Python
+# dependencies
+make -C ${ROOT} .spell-conda.yml
+
+exec spell hyper random ${SPELL_PARAMS} \
+  -t ${SPELL_MACHINE:-k80} \
+  ${SPELL_MOUNTS:--m public_data/riemann:$SPELL_ROOT/data -m resources:$SPELL_ROOT/resources} \
+  ${apt_dependencies} \
+  --conda-file ${ROOT}/.spell-conda.yml \
+  ${SPELL_OPTS-} \
+  -- 'set -x;
+      pushd '$SPELL_ROOT';
+        make compile-in-spell;
+      popd;
+      '$SPELL_ROOT'/bin/arglist.sh '"${args[@]@Q}"';
+      EMBEDDING_EVALUATION_DATA_PATH='$SPELL_ROOT'/data/evaluation PYTHONPATH=$PYTHONPATH:'$SPELL_ROOT' python '"${args[@]@Q}";

@@ -4,7 +4,7 @@ from typing import Mapping, Sequence, List, Dict, Tuple
 import os
 from .core_nlp import SimpleSentence
 
-term_freq_path = os.path.dirname(os.path.realpath(__file__)) + '/../resources/google_unigram_counts.tsv'
+term_freq_path = os.path.dirname(os.path.realpath(__file__)) + '/../../resources/google_unigram_counts.tsv'
 
 class TermFrequencies(Mapping[str, int]):
     """

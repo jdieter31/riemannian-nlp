@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "riemann"
+version = "0.0.1"
+description = "Use of Riemannian manifolds instead of real vector spaces for deep learning in NLP."
+authors = ["Justin Dieter <jdieter@stanford.edu>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/jdieter31/riemannian-nlp"
+homepage = "https://github.com/jdieter31/riemannian-nlp"
+# Custom build file to handle Cython
+build = 'build.py'
+
+[tool.poetry.dependencies]
+# Basic requirements for the platform
+python = "~3.7"
+toml = "~0.9"
+# Frameworks
+numpy = "~1.18"
+pandas = "~0.25"
+scipy = "~1.4"
+scikit-learn = "~0.22"
+# Note: Default spell/AWS images don't support torch > 1.2
+torch = "~1.2"
+# Graph search
+faiss = "~1.5"
+# Command-line parsing
+sacred = "~0.8"
+# Others
+tqdm = "~4.32"
+pyyaml = "~5.1"
+protobuf = "~3.11"
+h5py  = "~2.10"
+unidecode = "~1.1"
+cython = "~0.29.14"
+nltk = "~3.4"
+tensorboard = "~2.1"
+embedding_evaluation = { git = "https://github.com/arunchaganty/embedding_evaluation.git", branch="master" }
+
+[tool.poetry.dev-dependencies]
+pytest = "~3.0"
+pytest-cov = "~2.4"
+mypy = "~0.720.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
+[extras]

@@ -1,9 +1,14 @@
+import os
 import numpy as np
 import torch
 from .manifolds import RiemannianManifold
 from tqdm import tqdm
 from math import ceil, sqrt
 import faiss
+
+
+_use_gpu: bool = os.environ.get("USE_CPU", "0") != "1"
+
 
 class ManifoldNNS:
     def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold, samples_for_pole: int=10000):
@@ -19,13 +24,19 @@ class ManifoldNNS:
         self.pole = compute_pole(data_points[idx], self.manifold)
 
         print("Creating nns index")
-        res = faiss.StandardGpuResources()
         ivf_size = 2**(ceil(4 * sqrt(data_points.size(0)) - 1)).bit_length()
         index_flat = faiss.index_factory(data_points.size(-1), f"PCAR64,IVF{ivf_size},SQ8")
         # make it into a gpu index
-        self.index = faiss.index_cpu_to_gpu(res, 0, index_flat)
+        if _use_gpu:
+            res = faiss.StandardGpuResources()
+            # make it into a gpu index
+            self.index = faiss.index_cpu_to_gpu(res, 0, index_flat)
 
-        params = faiss.GpuParameterSpace()
+            params = faiss.GpuParameterSpace()
+        else:
+            self.index = index_flat
+            params = faiss.ParameterSpace()
+
         params.set_index_parameter(self.index, 'nprobe', 100)
         params.initialize(self.index)
 
