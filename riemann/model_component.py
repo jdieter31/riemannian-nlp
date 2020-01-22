@@ -55,6 +55,7 @@ def config():
             }
         }
     ]
+    intermediate_manifold_gen_products = None
     intermediate_dims = [900]
     sparse = True
     double_precision = False
@@ -78,9 +79,36 @@ def config():
     num_layers = 0
 
 @model_ingredient.capture
-def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers):
+def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products):
     intermediate_manifolds = intermediate_manifolds[:num_layers]
     intermediate_dims = intermediate_dims[:num_layers]
+    if intermediate_manifold_gen_products is not None:
+        if intermediate_manifold_gen_products == "ProductManifold":
+            intermediate_manifolds = [{
+                "name": intermediate_manifold_gen_products,
+                "params": {
+                    "submanifolds": [
+                        {
+                            "name": "PoincareBall",
+                            "dimension": dim//3
+                        },
+                        {
+                            "name": "SphericalManifold",
+                            "dimension": dim//3
+                        },
+                        {
+                            "name": "EuclideanManifold",
+                            "dimension": dim//3 + dim % 3
+                        }
+                    ]
+                    }
+                } for dim in intermediate_dims]
+        else:
+            intermediate_manifolds = [{
+                "name": intermediate_manifold_gen_products,
+                "params": None
+                } for _ in intermediate_dims]
+
     torch_dtype = torch.double if double_precision else torch.float
     if num_layers == 0:
         model_type = "embedding"
