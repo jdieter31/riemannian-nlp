@@ -57,20 +57,20 @@ def config():
     gpu = 0
     train_threads = 1
     embed_manifold_name = "EuclideanManifold"
-    embed_manifold_dim = 360
+    embed_manifold_dim = 900
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 120
+                "dimension" : 300
             },
             {
                 "name" : "SphericalManifold",
-                "dimension" : 120
+                "dimension" : 300
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 120
+                "dimension" : 300
             }
         ]
     }
