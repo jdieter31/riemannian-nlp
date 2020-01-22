@@ -62,15 +62,15 @@ def config():
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 33
+                "dimension" : 120
             },
             {
                 "name" : "SphericalManifold",
-                "dimension" : 34
+                "dimension" : 120
             },
             {
                 "name": "EuclideanManifold",
-                "dimension" : 33
+                "dimension" : 120
             }
         ]
     }

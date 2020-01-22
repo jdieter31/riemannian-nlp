@@ -75,10 +75,15 @@ def config():
     nonlinearity = "elu"
     num_poles = 1
     tries = 10
+    num_layers = 0
 
 @model_ingredient.capture
-def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles):
+def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers):
+    intermediate_manifolds = intermediate_manifolds[:num_layers]
+    intermediate_dims = intermediate_dims[:num_layers]
     torch_dtype = torch.double if double_precision else torch.float
+    if num_layers = 0:
+        model_type = "embedding"
     if model_type == "embedding":
         model = ManifoldEmbedding(manifold_out, len(data.objects), manifold_out_dim, sparse=sparse)
         initialize_manifold_tensor(model.weight.data, manifold_out, manifold_initialization)
