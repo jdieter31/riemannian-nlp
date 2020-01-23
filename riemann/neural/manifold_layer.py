@@ -55,14 +55,14 @@ class ManifoldLayer(nn.Module):
         x_expanded = x.unsqueeze(-2)
         log_x = self.in_manifold.log(self.log_base, x_expanded)
         # Scale by metric tensor (equivalent of lowering indices to get geodesic normal coordinates)
-        # log_x = self.in_manifold.lower_indices(self.log_base, log_x)
+        log_x = self.in_manifold.lower_indices(self.log_base, log_x)
         log_x_flattened = log_x.view(*x_expanded.size()[:-2], -1)
         linear_out = self.linear_layer(log_x_flattened)
         if self.non_linearity is not None:
             linear_out = self.non_linearity(linear_out)
 
         # Scale by metric tensor (raise indices)
-        # linear_out = self.out_manifold.rgrad(self.exp_base, linear_out)
+        linear_out = self.out_manifold.rgrad(self.exp_base, linear_out)
         exp_out = self.out_manifold.exp(self.exp_base, linear_out)
         return exp_out
 
