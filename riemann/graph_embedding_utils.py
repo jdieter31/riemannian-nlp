@@ -246,7 +246,7 @@ class FeaturizedModelEmbedding(nn.Module):
                         vector_offset = get_initialized_manifold_tensor(device, dtype, [end_index - start_index] + list(self.additional_embeddings.weight.size()[1:]), tangent_space, {
                                 'global': {
                                     'init_func': 'normal_',
-                                    'params': [-0.003, 0.003]
+                                    'params': [-0.03, 0.03]
                                 }
                             }, False)
                         self.additional_embeddings.weight[start_index:end_index] = in_manifold.retr(self.additional_embeddings.weight[start_index:end_index], vector_offset)
@@ -315,7 +315,7 @@ class FeaturizedModelEmbedding(nn.Module):
                             tangent_space, {
                             'global': {
                                 'init_func': 'normal_',
-                                'params': [-0.003, 0.003]
+                                'params': [-0.03, 0.03]
                             }
                         }, False)
                     self.additional_embeddings.weight.data[self.additional_index_map[single_average_indices]] = in_manifold.retr(
