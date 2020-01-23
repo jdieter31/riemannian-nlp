@@ -66,7 +66,7 @@ def config():
         # },
         'global': {
             'init_func': 'uniform_',
-            'params': [-0.05, 0.05]
+            'params': [-0.003, 0.003]
         },
         'SphericalManifold': {
             'init_func': 'normal_',
