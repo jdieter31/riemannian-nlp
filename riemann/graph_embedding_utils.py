@@ -218,7 +218,7 @@ class FeaturizedModelEmbedding(nn.Module):
         self.additional_index_map = None
         num_non_featurized = torch.sum(self.index_map < 0)
         if num_non_featurized > 0:
-            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim)
+            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim, sparse=True)
             self.additional_embeddings.to(device)
             if deltas:
                 self.additional_deltas = Embedding(num_non_featurized, out_dim)
