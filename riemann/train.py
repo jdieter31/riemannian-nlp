@@ -282,7 +282,7 @@ def train(
             optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
             if thread_number == 0:
-                write_tensorboard('add_scalar', ['minibatch_loss', batch_losses[-1], batch_num])
+                write_tensorboard('add_scalar', ['minibatch_loss', float(batch_losses[-1]), batch_num])
                 if total_loss is not None:
                     write_tensorboard('add_scalar', ['minibatch_total_loss', total_loss.cpu().detach().numpy(), batch_num])
 
@@ -296,7 +296,7 @@ def train(
             if conf_loss is not None:
                 batch_conf_losses.append(conf_loss.cpu().detach().numpy())
                 if thread_number == 0:
-                    write_tensorboard('add_scalar', ['minibatch_conf_loss', batch_conf_losses[-1], batch_num])
+                    write_tensorboard('add_scalar', ['minibatch_conf_loss', float(batch_conf_losses[-1]), batch_num])
 
 
             elapsed = timeit.default_timer() - t_start
