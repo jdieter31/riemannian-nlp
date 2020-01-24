@@ -67,7 +67,7 @@ class RiemannianSGD(Optimizer):
                             if d_p._values().max() > self.clip_val or d_p._values().min() < -self.clip_val:
                                 write_log(f"Warning -- riemannian-gradients were clipped on {manifold} with max_val {d_p._values().abs().max()}")
 
-                            d_p._values().clamp(-self.clip_val/lr, self.clip_val/lr)
+                            d_p._values().clamp(-self.clip_val, self.clip_val)
                         manifold.retr_(p, d_p._values() * (-lr), indices=indices)
                     else:
                         d_p = p.grad.data

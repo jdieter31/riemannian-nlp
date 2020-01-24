@@ -88,7 +88,6 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
 
     model = model.embedding_model
     jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
-    jacobian = jacobian.clamp(-1, 1)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
     tangent_proj_out_shape = tangent_proj_out.size()
