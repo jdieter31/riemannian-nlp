@@ -59,6 +59,8 @@ class RiemannianSGD(Optimizer):
                     d_p = p.grad.data
                     # Must only have sparse rows otherwise this will get messed up
                     if d_p.is_sparse:
+                        if d_p._nnz() == 0:
+                            continue
                         d_p = d_p.coalesce()
                         indices = d_p._indices()[0]
 
