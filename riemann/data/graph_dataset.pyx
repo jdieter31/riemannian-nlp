@@ -13,6 +13,7 @@ cimport numpy as npc
 cimport cython
 
 import numpy as np
+import pickle
 import torch
 from libcpp cimport bool
 from libcpp.vector cimport vector
@@ -63,8 +64,25 @@ cdef class BatchedDataset:
     cdef unordered_map[int, int] graph_neighbor_difs
     cdef list threads
 
-    def __cinit__(self, idx, objects, weights, manifold, n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, 
-            batch_size, num_workers, nn_workers, manifold_nn_k=60, features=None, train_edges=None, train_weights=None):
+    def __cinit__(self,
+            idx,
+            objects,
+            weights,
+            manifold,
+            n_graph_neighbors,
+            n_manifold_neighbors,
+            n_rand_neighbors, 
+            batch_size,
+            num_workers,
+            nn_workers,
+            manifold_nn_k=60,
+            features=None,
+            train_weights=None,
+            train_edges=None,  
+            saved_data_file=None,
+            saved_train_data=None,
+            gen_data=True):
+
         self.idx = idx
         self.objects = objects
         self.manifold = manifold
@@ -86,28 +104,48 @@ cdef class BatchedDataset:
         self.num_workers = num_workers
         self.nn_workers = nn_workers
         self.data_fraction = 1
-        print("Processing graph neighbors...")
-        all_graph_neighbors = []
-        all_graph_weights = []
-        non_empty_vertices = []
-        empty = 0
-        for i in tqdm(range(self.N)):
-            in_edges = self.graph.get_in_edges(i, [weight_property])
-            out_edges = self.graph.get_out_edges(i, [weight_property])
-            if in_edges.size + out_edges.size == 0:
-                empty += 1
-            else:
-                non_empty_vertices.append(i)
-                if in_edges.size == 0:
-                    all_graph_neighbors.append(out_edges[:, 1].astype(np.int64))
-                    all_graph_weights.append(out_edges[:, 2].astype(np.float32))
-                elif out_edges.size == 0:
-                    all_graph_neighbors.append(in_edges[:, 1].astype(np.int64))
-                    all_graph_weights.append(in_edges[:, 2].astype(np.float32))
+        if gen_data or saved_data_file is None:
+            print("Processing graph neighbors...")
+            all_graph_neighbors = []
+            all_graph_weights = []
+            non_empty_vertices = []
+            empty = 0
+            for i in tqdm(range(self.N)):
+                in_edges = self.graph.get_in_edges(i, [weight_property])
+                out_edges = self.graph.get_out_edges(i, [weight_property])
+                if in_edges.size + out_edges.size == 0:
+                    empty += 1
                 else:
-                    all_graph_neighbors.append(np.concatenate([in_edges[:, 0], out_edges[:, 1]]).astype(np.int64))
-                    all_graph_weights.append(np.concatenate([in_edges[:, 2], out_edges[:, 2]]).astype(np.float32))
-            
+                    non_empty_vertices.append(i)
+                    if in_edges.size == 0:
+                        all_graph_neighbors.append(out_edges[:, 1].astype(np.int64))
+                        all_graph_weights.append(out_edges[:, 2].astype(np.float32))
+                    elif out_edges.size == 0:
+                        all_graph_neighbors.append(in_edges[:, 1].astype(np.int64))
+                        all_graph_weights.append(in_edges[:, 2].astype(np.float32))
+                    else:
+                        all_graph_neighbors.append(np.concatenate([in_edges[:, 0], out_edges[:, 1]]).astype(np.int64))
+                        all_graph_weights.append(np.concatenate([in_edges[:, 2], out_edges[:, 2]]).astype(np.float32))
+                
+        
+        if saved_data_file is not None:
+            if gen_data:
+                print("Saving data...")
+                raw = {
+                    "all_graph_neighbors": all_graph_neighbors,
+                    "all_graph_weights": all_graph_weights,
+                    "non_empty_vertices": non_empty_vertices,
+                    "empty": empty
+                }
+                pickle.dump(raw, open(saved_data_file, "wb"))
+            else:
+                print("Loading data...")
+                raw = pickle.load(open(saved_data_file, "rb"))
+                all_graph_neighbors = raw["all_graph_neighbors"]
+                all_graph_weights = raw["all_graph_weights"]
+                non_empty_vertices = raw["non_empty_vertices"]
+                empty = raw["empty"]
+               
         self.non_empty_indices = np.array(non_empty_vertices, dtype=np.int64)
         self.N_non_trivial = self.N - empty
 
@@ -161,15 +199,19 @@ cdef class BatchedDataset:
         else:
             self.is_eval = False
 
-
-
     @classmethod
     def initialize_eval_dataset(cls, train_dataset, eval_batch_size, n_eval_neighbors, max_graph_neighbors,
-            eval_workers, eval_nn_workers, manifold_neighbors=0, eval_edges=None, eval_weights=None):
+            eval_workers, eval_nn_workers, manifold_neighbors=0, eval_edges=None, eval_weights=None, 
+            saved_data_file=None,
+            saved_train_data=None,
+            gen_data=True):
         if eval_edges is None:
             return BatchedDataset(train_dataset.idx, train_dataset.objects, train_dataset.weights, train_dataset.manifold,
                     max_graph_neighbors, manifold_neighbors, n_eval_neighbors - max_graph_neighbors, eval_batch_size, eval_workers,
-                    eval_nn_workers, features=train_dataset.features)
+                    eval_nn_workers, features=train_dataset.features,
+                    saved_data_file=saved_data_file,
+                    saved_train_data=saved_train_data,
+                    gen_data=gen_data)
         else:
             return BatchedDataset(eval_edges, train_dataset.objects, eval_weights, train_dataset.manifold,
                     max_graph_neighbors, manifold_neighbors, n_eval_neighbors - max_graph_neighbors, eval_batch_size, eval_workers,

@@ -38,12 +38,12 @@ class RiemannianSGD(Optimizer):
         super(RiemannianSGD, self).__init__(params, defaults)
 
     def step(self, **kwargs):
-        """Performs a single optimization step.
+        """Performs a single optimization step. Returns gradient norm
 
         """
         if self.adam_optimizer is not None:
             self.adam_optimizer.step()
-        loss = None
+        norms = []
         with torch.no_grad():
             for group in self.param_groups:
                 for p in group['params']:
@@ -64,6 +64,8 @@ class RiemannianSGD(Optimizer):
                         d_p = d_p.coalesce()
                         indices = d_p._indices()[0]
 
+                        norms.append(torch.flatten(d_p._values()).norm().cpu().detach())
+
                         manifold.rgrad_(p[indices], d_p._values())
                         if self.clip_grads:
                             if d_p._values().max() > self.clip_val or d_p._values().min() < -self.clip_val:
@@ -73,11 +75,12 @@ class RiemannianSGD(Optimizer):
                         manifold.retr_(p, d_p._values() * (-lr), indices=indices)
                     else:
                         d_p = p.grad.data
+                        norms.append(torch.flatten(d_p).norm().cpu().detach())
                         manifold.rgrad_(p.data, d_p)
                         if self.clip_grads:
                             if d_p.max() > self.clip_val or d_p.min() < -self.clip_val:
                                 write_log(f"Warning -- gradients were clipped on {manifold} with max_val {d_p.abs().max()}")
                             d_p = d_p.clamp(-self.clip_val, self.clip_val)
                         manifold.retr_(p.data, d_p * (-lr))
+        return float(torch.tensor(norms).norm().cpu().detach().numpy())
 
-        return loss

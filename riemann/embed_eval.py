@@ -16,113 +16,45 @@ from .manifold_nns import compute_pole_batch, ManifoldNNS
 from .manifolds.schilds_ladder import schilds_ladder
 from torch.nn.functional import cosine_similarity
 from tqdm import tqdm
+from .embedding.conceptnet import standardized_uri
 
 from scipy import stats
 
 
 eval_ingredient = Ingredient('evaluation')
 
-eval_queue = None
-process = None
+benchmark_set = {}
 
-def async_eval(adj, benchmarks_to_eval, num_workers, eval_mean_rank, tboard_projector):
-    global eval_queue
-    if eval_queue is None:
-        return
-    finished = False
+@eval_ingredient.capture
+def eval_wordsim_benchmarks(graph_embedding_model, manifold, benchmarks, dist_func, device='cpu', iteration=0):
+    benchmark_results = {}
+    global benchmark_set
+    if dist_func == "manifold_cosine":
+        with torch.no_grad():
+            embeddings = graph_embedding_model.get_embedding_matrix()
+        poles = compute_pole_batch(embeddings, manifold)
+        poles = poles.to(device)
 
-    if len(benchmarks_to_eval) > 0:
-        benchmarks = process_benchmarks()
-    featurizer, featurizer_dim = None, 0 
-    graph_embedding_model = None
+    print("\nEvalutating Benchmarks")
+    for benchmark in benchmarks:
 
-    while True:
-        if finished and eval_queue.empty():
-            return
-
-        temp = eval_queue.get()
-        if temp is None:
-            return
-        
-        if temp == "finish":
-            finished=True
-            continue
-
-        epoch, elapsed, loss, path = temp
-        model, save_data = load_model(path)
-
-        objects = save_data["objects"]
-        manifold = save_data["manifold"]
-        dimension = save_data["dimension"]
-        in_manifold = save_data["in_manifold"]
-        if "features" in save_data:
-            if featurizer is None:
-                featurizer, featurizer_dim = get_canonical_glove_word_featurizer()
-            if graph_embedding_model is None:
-                graph_embedding_model = FeaturizedModelEmbedding(model, save_data["features"], in_manifold, manifold, dimension, featurizer=featurizer, featurizer_dim=featurizer_dim)
-                if "additional_embeddings_state_dict" in save_data:
-                    graph_embedding_model.get_additional_embeddings().load_state_dict(save_data["additional_embeddings_state_dict"])
-                if "main_deltas_state_dict" in save_data:
-                    graph_embedding_model.main_deltas.load_state_dict(save_data["main_deltas_state_dict"])
-                if "additional_deltas_state_dict" in save_data:
-                    graph_embedding_model.additional_deltas.load_state_dict(save_data["additional_deltas_state_dict"])
-                if "deltas" in save_data:
-                    graph_embedding_model.deltas = save_data["deltas"]
-            else:
-                graph_embedding_model.embedding_model = model
-                if "additional_embeddings_state_dict" in save_data:
-                    graph_embedding_model.get_additional_embeddings().load_state_dict(save_data["additional_embeddings_state_dict"])
-                if "main_deltas_state_dict" in save_data:
-                    graph_embedding_model.main_deltas.load_state_dict(save_data["main_deltas_state_dict"])
-                if "additional_deltas_state_dict" in save_data:
-                    graph_embedding_model.additional_deltas.load_state_dict(save_data["additional_deltas_state_dict"])
-                if "deltas" in save_data:
-                    graph_embedding_model.deltas = save_data["deltas"]
+                #featurize = lambda w: in_manifold.proj(torch.FloatTensor(featurizer(w)).to(device)) if featurizer(w) is not None else in_manifold.proj(torch.zeros(embeddings.size(-1)).to(device))
+        if dist_func == "manifold_cosine":
+            dist_func = lambda w1, w2: pole_log_cosine_sim(graph_embedding_model.forward_featurize(standardized_uri("en", w1)), graph_embedding_model.forward_featurize(standardized_uri("en", w2)), manifold, poles)
         else:
-            graph_embedding_model = model
-        if eval_mean_rank or tboard_projector:
-            with torch.no_grad():
-                embeddings = graph_embedding_model.get_embedding_matrix()
-        if tboard_projector:
-            write_tensorboard('add_embedding', [embeddings.cpu().detach().numpy(), objects, None, epoch, f"epoch-{epoch}"])
+            dist_func = lambda w1, w2: - manifold.dist(graph_embedding_model.forward_featurize(standardized_uri("en", w1)), graph_embedding_model.forward_featurize(standardized_uri("en", w2)))
+        # dist_func = lambda w1, w2: - manifold.dist(graph_embedding_model.forward_featurize(w1), graph_embedding_model.forward_featurize(w2))
 
+        # featurizer = lambda w: graph_embedding_model.forward_featurize(w)
+        # featurizer = lambda w: torch.as_tensor([graph_embedding_model.featurizer(w)], dtype=graph_embedding_model.input_embedding.weight.dtype, device=device)
 
-        lmsg = {
-            'epoch': epoch,
-            'elapsed': elapsed,
-            'loss': loss,
-        }
-        
+        # dist_func = lambda w1, w2: - manifold.dist(graph_embedding_model.embedding_model(w1), graph_embedding_model.embedding_model(w2))
 
-        if eval_mean_rank:
-            meanrank, mrr, hitsat10 = eval_reconstruction(adj, adj, embeddings, manifold.dist, workers=1, progress=True)
-            lmsg.update({
-                'mean_rank': meanrank,
-                'mrr': mrr,
-                'hits@10': hitsat10
-            })
-
-        if featurizer is not None:
-            benchmark_results = {}
-            #poles = compute_pole_batch(embeddings, manifold)
-
-            for benchmark in benchmarks_to_eval:
-                #featurize = lambda w: in_manifold.proj(torch.FloatTensor(featurizer(w))) if featurizer(w) is not None else in_manifold.proj(torch.zeros(embeddings.size(-1)))
-                #dist_func = lambda w1, w2: pole_log_cosine_sim(model(w1), model(w2), manifold, poles)
-                
-                dist_func = lambda w1, w2: - manifold.dist(graph_embedding_model.forward_featurize(w1), graph_embedding_model.forward_featurize(w2))
-                with torch.no_grad():
-                    rho = eval_benchmark(benchmarks[benchmark], dist_func)
-                benchmark_results[f"{benchmark}_rho"] = rho
-                write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, epoch])
-            
-            lmsg.update(benchmark_results)
-
-        if eval_mean_rank:
-            write_tensorboard('add_scalar', ['mean_rank', meanrank, epoch])
-            write_tensorboard('add_scalar', ['mrr', mrr, epoch])
-            write_tensorboard('add_scalar', ['hits@10', hitsat10, epoch])
-        write_log(f"Stats: {json.dumps(lmsg)}")
+        with torch.no_grad():
+            rho = eval_benchmark(benchmark_set[benchmark], dist_func)
+            # rho = eval_benchmark_batch(benchmark_set[benchmark], featurizer, dist_func)
+        benchmark_results[f"{benchmark}_rho"] = rho
+        write_tensorboard('add_scalar', [f"{benchmark}_rho", rho, iteration])
 
 
 def pole_log_cosine_sim(w1, w2, manifold, poles):
@@ -137,7 +69,7 @@ def pole_log_cosine_sim(w1, w2, manifold, poles):
 def eval_benchmark(benchmark, dist_func):
     gold_list = []
     model_dist = []
-    for (word1, word2), gold_score in benchmark.items():
+    for (word1, word2), gold_score in tqdm(benchmark.items()):
         gold_list.append(gold_score)
         model_dist.append(dist_func(word1, word2)[0].cpu().detach().numpy())
     return stats.spearmanr(model_dist, gold_list)[0]
@@ -146,13 +78,13 @@ def eval_benchmark_batch(benchmark, featurizer, dist_func):
     gold_list = []
     w1_feature_list = []
     w2_feature_list = []
-    for (word1, word2), gold_score in benchmark.items():
+    for (word1, word2), gold_score in tqdm(benchmark.items()):
         gold_list.append(gold_score)
         w1_feature_list.append(featurizer(word1))
         w2_feature_list.append(featurizer(word2))
     w1_features = torch.stack(w1_feature_list)
     w2_features = torch.stack(w2_feature_list)
-    dists = dist_func(w1_features, w2_features).detach().numpy()
+    dists = dist_func(w1_features, w2_features).cpu().detach().numpy()
     return stats.spearmanr(dists, gold_list)[0]
 
 
@@ -185,7 +117,7 @@ def eval_analogy(model, manifold, nns=None):
 
     with torch.no_grad():
         embedding_matrix = model.get_embedding_matrix().cpu()
-        features = [feature.lower() for feature in model.features_list]
+        features = [standardized_uri("en", feature) for feature in model.features_list]
         feature_set = set(features)
         extra_vocab = []
         extra_vecs = []
@@ -195,14 +127,14 @@ def eval_analogy(model, manifold, nns=None):
         for analogy_set in [syn_analogies, sem_analogies]:
             for analogy in tqdm(analogy_set):
                 for word in analogy:
-                    if word.lower() not in feature_set:
-                        if model.featurizer(word.lower()) is None:
+                    if standardized_uri("en", word) not in feature_set:
+                        if model.featurizer(standardized_uri("en", word)) is None:
                             skip_analogies.append(analogy)
                             break
 
-                        extra_vocab.append(word.lower())
-                        feature_set.add(word.lower())
-                        extra_vecs.append(model.forward_featurize(word.lower()).cpu().squeeze(0))
+                        extra_vocab.append(standardized_uri("en", word))
+                        feature_set.add(standardized_uri("en", word))
+                        extra_vecs.append(model.forward_featurize(standardized_uri("en", word)).cpu().squeeze(0))
                             
         vocab = features + extra_vocab
         vocab_dict = {vocab[i] : i for i in range(len(vocab))}
@@ -230,13 +162,13 @@ def eval_analogy(model, manifold, nns=None):
             for analogy in tqdm(analogy_set):
                 if analogy in skip_analogies:
                     continue 
-                a1_vecs.append(embedding_matrix[vocab_dict[analogy[0].lower()]])
-                a2_vecs.append(embedding_matrix[vocab_dict[analogy[1].lower()]])
-                b1_vecs.append(embedding_matrix[vocab_dict[analogy[2].lower()]])
-                a1_words.append(analogy[0].lower())
-                a2_words.append(analogy[1].lower())
-                b1_words.append(analogy[2].lower())
-                b2_words.append(analogy[3].lower())
+                a1_vecs.append(embedding_matrix[vocab_dict[standardized_uri("en", analogy[0])]])
+                a2_vecs.append(embedding_matrix[vocab_dict[standardized_uri("en", analogy[1])]])
+                b1_vecs.append(embedding_matrix[vocab_dict[standardized_uri("en", analogy[2])]])
+                a1_words.append(standardized_uri("en", analogy[0]))
+                a2_words.append(standardized_uri("en", analogy[1]))
+                b1_words.append(standardized_uri("en", analogy[2]))
+                b2_words.append(standardized_uri("en", analogy[3]))
 
             a1_vecs = torch.stack(a1_vecs)
             a2_vecs = torch.stack(a2_vecs)
@@ -269,17 +201,18 @@ def eval_analogy(model, manifold, nns=None):
 @eval_ingredient.config
 def config():
     eval_workers = 5
-    benchmarks = ['men_full', 'men_dev', 'men_test', 'ws353', 'rw', 'simlex', "simlex-q1", "simlex-q2", "simlex-q3", "simlex-q4", "mturk771"]
+    # benchmarks = ['men_full', 'men_dev', 'men_test', 'ws353', 'rw', 'simlex', "simlex-q1", "simlex-q2", "simlex-q3", "simlex-q4", "mturk771"]
+    benchmarks = ['men_full', 'men_dev', 'ws353', 'rw', "mturk771"]
+    dist_func = "manifold_cosine"
     eval_mean_rank = False
     tboard_projector = False
 
 @eval_ingredient.capture
 def initialize_eval(eval_workers, adjacent_list, benchmarks, eval_mean_rank, tboard_projector):
-    global eval_queue
-    eval_queue = mp.Queue()
-    global process
-    process = mp.Process(target=async_eval, args=(adjacent_list, benchmarks, eval_workers, eval_mean_rank, tboard_projector))
-    process.start()
+    global benchmark_set
+    if len(benchmarks) > 0:
+        benchmark_set = process_benchmarks()
+    
 
 @eval_ingredient.capture
 def evaluate(epoch, elapsed, loss, path):

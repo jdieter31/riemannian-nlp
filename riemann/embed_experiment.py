@@ -52,25 +52,25 @@ ex.logger = logger
 
 @ex.config
 def config():
-    n_epochs = 10
-    eval_every = 200
+    n_epochs = 50
+    eval_every = 100
     gpu = 0
     train_threads = 1
-    embed_manifold_name = "EuclideanManifold"
-    embed_manifold_dim = 600
+    embed_manifold_name = "ProductManifold"
+    embed_manifold_dim = 500
     embed_manifold_params = {
        "submanifolds": [
             {
                 "name" : "PoincareBall",
-                "dimension" : 150
+                "dimension" : 90
             },
             {
-                "name" : "SphericalManifold",
-                "dimension" : 300
+                "name" : "EuclideanManifold",
+                "dimension" : 320
             },
             {
-                "name": "EuclideanManifold",
-                "dimension" : 150
+                "name": "SphericalManifold",
+                "dimension" : 90
             }
         ]
     }
@@ -78,18 +78,18 @@ def config():
     now = datetime.now()
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D-{now:-%m:%d:%Y-%H:%M:%S}"
     loss_params = {
-        "margin": 0.001,
+        "margin": 0.01,
         "discount_factor": 0.5
     }
     conformal_loss_params = {
-        "weight": 0.96,
+        "weight": 0.99,
         "num_samples": 15,
         "isometric": True,
         "random_samples": 15,
         "random_init": {
             'global': {
                 'init_func': 'normal_',
-                'params': [0, 1]
+                'params': [0, 0.06]
             }
         },
         "update_every": 1
@@ -113,8 +113,10 @@ def embed(
         conformal_loss_params,
         sample_neighbors_every,
         resume_training,
+        model,
         _log
         ):
+    model_ingredient_data = model
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
     torch.set_num_threads(1)
 
@@ -143,7 +145,12 @@ def embed(
         mp.set_sharing_strategy('file_system')
         model = model.share_memory()
 
-    feature_manifold = RiemannianManifold.from_name_params("SphericalManifold", None)
+
+
+    if model_ingredient_data["input_manifold"] == "Spherical":
+        feature_manifold = RiemannianManifold.from_name_params("SphericalManifold", None)
+    else:
+        feature_manifold = RiemannianManifold.from_name_params("EuclideanManifold", None)
 
     shared_params = {
         "manifold": embed_manifold,
@@ -154,16 +161,16 @@ def embed(
     if hasattr(model, "get_additional_embeddings") and model.get_additional_embeddings() is not None:
         optimizer = RiemannianSGD([
                 {'params': model.get_savable_model().parameters()},
-                # {'params': model.main_deltas.parameters(), 'lr': 1},
-                # {'params': model.additional_deltas.parameters(), 'lr':1},
-                {'params': curvature_scale[:2], 'lr':0.001},
+                # {'params': model.main_deltas.parameters(), 'lr':300},
+                # {'params': model.additional_deltas.parameters(), 'lr':300},
+                # {'params': curvature_scale[:2], 'lr':0.001},
                 {'params': model.get_additional_embeddings().parameters(), 'lr': get_fixed_embedding_lr()}
             ], lr=get_base_lr(), adam_for_euc=False)
         # optimizer = RiemannianSGD(list(model.get_savable_model().parameters()) + list(model.get_additional_embeddings().parameters()) + curvature_scale[1:], lr=get_base_lr(), adam_for_euc=False)
     else:
         optimizer = RiemannianSGD([
-                {'params': model.parameters()},
-                {'params': curvature_scale[:2], 'lr':0.001}
+                {'params': model.get_savable_model().parameters()}
+                # {'params': curvature_scale[:2], 'lr':0.001}
             ], lr=get_base_lr(), adam_for_euc=False)
     lr_scheduler = get_lr_scheduler(optimizer)
     

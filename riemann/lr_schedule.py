@@ -14,14 +14,14 @@ def config():
         fixed_schedule - Iterates through scheduled_lrs over durations specified in
             lr_durations and remains constant at the last lr
     """
-    schedule_type = "decay"
-    base_lr = 0.001
-    fixed_embedding_lr = 0.001
+    schedule_type = "fixed_schedule"
+    base_lr = 0.003
+    fixed_embedding_lr = 50
     if schedule_type == "linear" or schedule_type == "fixed_schedule":
         base_lr = 1
 
-    scheduled_lrs = [0.001, 0.003, 0.001]
-    lr_durations = [3, 3]
+    scheduled_lrs = [0.001, 0.003]
+    lr_durations = [1]
     decay_rate = 20
 
 @lr_schedule_ingredient.capture

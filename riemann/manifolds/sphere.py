@@ -67,7 +67,9 @@ class SphericalManifold(RiemannianManifold):
         return self.proj_(x, indices)
 
     def exp(self, x, u):
-        # u = u - (x * u).sum(dim=-1, keepdim=True) * x
+        # Ensure u is in tangent space
+        #u = u - (x * u).sum(dim=-1, keepdim=True) * x
+
         norm_u = u.norm(dim=-1, keepdim=True)
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
         retr = self.proj(x + u)

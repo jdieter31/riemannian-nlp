@@ -17,7 +17,7 @@ class ManifoldLayer(nn.Module):
             num_poles=3,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
-            ortho_init=False,
+            ortho_init=True,
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold

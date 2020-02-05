@@ -176,7 +176,7 @@ class ProductManifold(RiemannianManifold):
             sub_matrix = metric_tensor.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
             sub_metric = self.submanifolds[i].get_metric_tensor(self.get_submanifold_value_index(x, i))
             if self.curvature_scale is not None:
-                sub_metric = sub_metric / torch.exp(self.curvature_scale[i].detach().to(sub_metric.device))
+                sub_metric = sub_metric / torch.exp(self.curvature_scale[i].to(sub_metric.device))
             sub_matrix.copy_(sub_metric)
         return metric_tensor
 

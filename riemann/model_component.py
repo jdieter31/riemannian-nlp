@@ -1,8 +1,9 @@
 from sacred import Ingredient
-from .graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer
+from .graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer, get_cn_vector_featurizer
 from .manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold
 from .manifold_initialization import *
 from .neural import ManifoldLayer, ManifoldNetwork
+from .embedding.conceptnet.formats import load_hdf
 import random
 import time
 import torch
@@ -19,44 +20,52 @@ def config():
     path += f"{i}.tch"
     model_type = "featurized_model_manifold_network"
     intermediate_manifolds = [
-        {
-            "name": "ProductManifold",
-            "params": {
-                "submanifolds": [
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "PoincareBall",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "SphericalManifold",
-                        "dimension": 100
-                    },
-                    {
-                        "name": "EuclideanManifold",
-                        "dimension": 300
-                    }
-                ]
+      {
+        "name": "ProductManifold",
+        "params": {
+          "submanifolds": [
+            {
+              "dimension": 225,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 225,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 225,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 225,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 225,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 225,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 225,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 225,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 900,
+              "name": "EuclideanManifold"
             }
+          ]
         }
+      }
     ]
     intermediate_manifold_gen_products = None
-    intermediate_dims = [900]
+    intermediate_dims = [2700]
     sparse = True
     double_precision = False
     manifold_initialization = {
@@ -73,13 +82,17 @@ def config():
             'params': [0, 1]
         }
     }
-    nonlinearity = "elu"
+    nonlinearity = None
     num_poles = 1
     tries = 10
-    num_layers = 0
+    num_layers = 1
+
+    featurizer_name = "conceptnet"
+    cn_vector_frame_file = "data/glove_w2v_merge.h5"
+    input_manifold = "Euclidean"
 
 @model_ingredient.capture
-def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products):
+def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products, featurizer_name, cn_vector_frame_file, input_manifold):
     intermediate_manifolds = intermediate_manifolds[:num_layers]
     intermediate_dims = intermediate_dims[:num_layers]
     if intermediate_manifold_gen_products is not None:
@@ -111,22 +124,36 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
 
     torch_dtype = torch.double if double_precision else torch.float
     if num_layers == 0:
-        model_type = "embedding"
+        model_type = "featurized_model_manifold_logistic"
     if model_type == "embedding":
         model = ManifoldEmbedding(manifold_out, len(data.objects), manifold_out_dim, sparse=sparse)
         initialize_manifold_tensor(model.weight.data, manifold_out, manifold_initialization)
     elif model_type == "featurized_model_manifold_logistic":
         features = data.features
-        featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
-        in_manifold = SphericalManifold()
+        if featurizer_name == "conceptnet":
+            frame = load_hdf(cn_vector_frame_file)
+            featurizer, featurize_dim = get_cn_vector_featurizer(cn_vector_frame_file)
+        else:
+            featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
+        if input_manifold == "Spherical":
+            in_manifold = SphericalManifold()
+        else:
+            in_manifold = EuclideanManifold()
+            
         log_base_init = get_initialized_manifold_tensor(device, torch_dtype, [num_poles, featurize_dim], in_manifold, manifold_initialization, requires_grad=True)
         exp_base_init = get_initialized_manifold_tensor(device, torch_dtype, manifold_out_dim, manifold_out, manifold_initialization, requires_grad=True)
         featurized_model = ManifoldLayer(in_manifold, manifold_out, featurize_dim, manifold_out_dim, None, num_poles, log_base_init, exp_base_init)
-        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold, manifold_out, manifold_out_dim, device=device, manifold_initialization=manifold_initialization)
+        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold, manifold_out, manifold_out_dim, device=device, manifold_initialization=manifold_initialization, featurizer=featurizer, featurizer_dim=featurize_dim)
     elif model_type == "featurized_model_manifold_network":
         features = data.features
-        featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
-        in_manifold = SphericalManifold()
+        if featurizer_name == "conceptnet":
+            featurizer, featurize_dim = get_cn_vector_featurizer(cn_vector_frame_file)
+        else:
+            featurizer, featurize_dim = get_canonical_glove_sentence_featurizer()
+        if input_manifold == "Spherical":
+            in_manifold = SphericalManifold()
+        else:
+            in_manifold = EuclideanManifold()
         log_base_inits = []
         log_base_inits.append(get_initialized_manifold_tensor(device, torch_dtype, [num_poles, featurize_dim], in_manifold, manifold_initialization, requires_grad=True))
         exp_base_inits = []
@@ -142,7 +169,7 @@ def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, 
         dimension_seq.append(manifold_out_dim)
         manifold_seq.append(manifold_out)
         featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, nonlinearity, num_poles, log_base_inits, exp_base_inits)
-        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold, manifold_out, manifold_out_dim, device=device, manifold_initialization=manifold_initialization)
+        model = FeaturizedModelEmbedding(featurized_model, features, in_manifold, manifold_out, manifold_out_dim, device=device, manifold_initialization=manifold_initialization, featurizer=featurizer, featurizer_dim=featurize_dim)
     else:
         raise Exception("Improper model configuration")
     model = model.to(device)
