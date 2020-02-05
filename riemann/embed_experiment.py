@@ -78,7 +78,7 @@ def config():
     now = datetime.now()
     tensorboard_dir = f"runs/{embed_manifold_name}-{embed_manifold_dim}D-{now:-%m:%d:%Y-%H:%M:%S}"
     loss_params = {
-        "margin": 0.01,
+        "margin": 0.0001,
         "discount_factor": 0.5
     }
     conformal_loss_params = {

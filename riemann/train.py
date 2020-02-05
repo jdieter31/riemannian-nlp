@@ -248,7 +248,7 @@ def train(
                         if hasattr(model, "additional_deltas"):
                             for p in model.additional_deltas.parameters():
                                 p.requires_grad = True
-            loss = 0.01 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
+            loss = 0.05 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
             loss.backward()
             loss_grad_norm = optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
@@ -262,7 +262,7 @@ def train(
                 idx = perm[:conformal_loss_params["num_samples"]]
                 main_inputs = main_inputs[idx]
                 # model.deltas = False
-                conf_loss = 0.4 * metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
+                conf_loss = 3 * metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
                         isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
                         random_init=conformal_loss_params["random_init"])
 

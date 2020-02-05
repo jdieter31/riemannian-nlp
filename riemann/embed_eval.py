@@ -203,7 +203,7 @@ def config():
     eval_workers = 5
     # benchmarks = ['men_full', 'men_dev', 'men_test', 'ws353', 'rw', 'simlex', "simlex-q1", "simlex-q2", "simlex-q3", "simlex-q4", "mturk771"]
     benchmarks = ['men_full', 'men_dev', 'ws353', 'rw', "mturk771"]
-    dist_func = "manifold_cosine"
+    dist_func = "manifold_dist"
     eval_mean_rank = False
     tboard_projector = False
 

@@ -89,7 +89,7 @@ def config():
 
     featurizer_name = "conceptnet"
     cn_vector_frame_file = "data/glove_w2v_merge.h5"
-    input_manifold = "Euclidean"
+    input_manifold = "Spherical"
 
 @model_ingredient.capture
 def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products, featurizer_name, cn_vector_frame_file, input_manifold):
