@@ -1,5 +1,6 @@
 import torch.multiprocessing as mp
 import torch
+from pytorch_memlab import MemReporter
 
 from . import embed_eval
 from .embed_save import save_model
@@ -42,6 +43,7 @@ def train(
         ):
 
     batch_num = 0
+    reporter = MemReporter()
     for epoch in range(1, n_epochs + 1):
         batch_losses = []
         if conformal_loss_params is not None:
@@ -53,8 +55,8 @@ def train(
             graph_dists = None
             conf_loss = None
             loss = None
-            import gc; gc.collect()
-            torch.cuda.empty_cache()
+            #import gc; gc.collect()
+            #torch.cuda.empty_cache()
             with torch.no_grad():
                 model.to(device)
                 nns = data.refresh_manifold_nn(model.get_embedding_matrix(), manifold, return_nns=True)
@@ -66,8 +68,8 @@ def train(
                 write_tensorboard('add_scalar', ['syn_acc', syn_acc, epoch - 1])
                 write_tensorboard('add_scalar', ['sem_acc', sem_acc, epoch - 1])
 
-            import gc; gc.collect()
-            torch.cuda.empty_cache()
+            #import gc; gc.collect()
+            #torch.cuda.empty_cache()
 
         data_iterator = tqdm(data) if thread_number == 0 else data
 
@@ -91,7 +93,7 @@ def train(
                 save_data.update(shared_params)
                 path = save_model(savable_model, save_data)
                 elapsed = 0 # Used to eval every batch setting this to zero as its only used for printing output
-                embed_eval.eval_wordsim_benchmarks(model, manifold, device=device, iteration=batch_num)
+                # embed_eval.eval_wordsim_benchmarks(model, manifold, device=device, iteration=batch_num)
                 if eval_data is not None:
                     with torch.no_grad():
                         hitsat10 = 0
@@ -192,8 +194,10 @@ def train(
                             
                         del manifold_dists, manifold_dists_sorted, sample_vertices, main_vertices, input_embeddings
 
-                        import gc;gc.collect()
-                        torch.cuda.empty_cache()
+                        #import gc;gc.collect()
+                        #torch.cuda.empty_cache()
+            print(model)
+            reporter.report()
 
             conf_loss = None
             delta_loss = None
@@ -248,13 +252,13 @@ def train(
                         if hasattr(model, "additional_deltas"):
                             for p in model.additional_deltas.parameters():
                                 p.requires_grad = True
-            loss = 0.05 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
+            loss = 0.01 * manifold_dist_loss_relu_sum(model, inputs, graph_dists, manifold, **loss_params)
             loss.backward()
             loss_grad_norm = optimizer.step()
             batch_losses.append(loss.cpu().detach().numpy())
             del loss
-            import gc;gc.collect()
-            torch.cuda.empty_cache()
+            #import gc;gc.collect()
+            #torch.cuda.empty_cache()
             if optimizing_model and hasattr(model, 'embedding_model') and conformal_loss_params is not None and epoch % conformal_loss_params["update_every"] == 0:
                 optimizer.zero_grad()
                 main_inputs = inputs.narrow(1, 0, 1).squeeze(1).clone().detach()
@@ -262,7 +266,7 @@ def train(
                 idx = perm[:conformal_loss_params["num_samples"]]
                 main_inputs = main_inputs[idx]
                 # model.deltas = False
-                conf_loss = 3 * metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
+                conf_loss = 0.5 * metric_loss(model, main_inputs, feature_manifold, manifold, dimension,
                         isometric=conformal_loss_params["isometric"], random_samples=conformal_loss_params["random_samples"],
                         random_init=conformal_loss_params["random_init"])
 
@@ -274,8 +278,8 @@ def train(
 
                     write_tensorboard('add_scalar', ['conf_loss_gradient_norm', conf_loss_grad_norm, batch_num])
                 del conf_loss
-                import gc;gc.collect()
-                torch.cuda.empty_cache()
+                #import gc;gc.collect()
+                #torch.cuda.empty_cache()
                 # model.deltas = True
 
             if hasattr(model, 'main_deltas') and optimizing_deltas:

@@ -1,19 +1,19 @@
 import os
-from sacred import Ingredient
+from ..config.config_loader import register_default_config
+from ..config.config import ConfigDict
 from math import floor
 
 from .graph import load_edge_list, load_adjacency_matrix
 
 from .graph_dataset import BatchedDataset
+
+from ..config_loader import global_config
+
 import numpy as np
 
-root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
 
-data_ingredient = Ingredient("dataset")
 
-@data_ingredient.config
-def config():
-    # path = "data/enwiki-2013.txt"
+class DataConfig(ConfigDict):
     path = os.path.join(root_path, "data/en_conceptnet_regularized_filtered.csv")
     graph_data_type = "edge"
     graph_data_format = "hdf5"
@@ -43,7 +43,9 @@ def config():
     # Valid values are conceptnet, wordnet
     object_id_to_feature_func = "id"
 
-@data_ingredient.capture
+register_default_config("data", DataConfig)
+
+'''
 def load_dataset(
         manifold,
         graph_data_type,
@@ -70,29 +72,32 @@ def load_dataset(
         graph_data_file,
         gen_graph_data,
         object_id_to_feature_func=None):
+'''
+def load_dataset():
+    data_config = global_config["data"]     
 
     if graph_data_type == "edge":
-        idx, objects, weights = load_edge_list(path, symmetrize, delimiter=delimiter)
+        idx, objects, weights = load_edge_list(data_config.path, data_config.symmetrize, delimiter=data_config.delimiter)
     else:
-        idx, objects, weights = load_adjacency_matrix(path, graph_data_format, symmetrize)
+        idx, objects, weights = load_adjacency_matrix(data_config.path, data_config.graph_data_format, data_config.symmetrize)
 
     # define a feature function
-    if object_id_to_feature_func == "conceptnet":
+    if data_config.object_id_to_feature_func == "conceptnet":
         features = [' '.join(object_id.split('_')) for object_id in objects]
-    elif object_id_to_feature_func == "wordnet":
+    elif data_config.object_id_to_feature_func == "wordnet":
         # placental_mammal.n.01 -> placental mammal
         features = [' '.join(object_id.split('.')[0].split('_')) for object_id in objects]
-    elif object_id_to_feature_func == "id":
+    elif data_config.object_id_to_feature_func == "id":
         # xyz -> xyz
         features = [object_id for object_id in objects]
     else:
         features = None
 
     if make_eval_split:
-        np.random.seed(split_seed)
+        np.random.seed(data_config.split_seed)
         shuffle_order = np.arange(idx.shape[0])
         np.random.shuffle(shuffle_order)
-        num_eval = floor(idx.shape[0] * split_size)
+        num_eval = floor(idx.shape[0] * data_config.split_size)
         eval_indices = shuffle_order[:num_eval]
         train_indices = shuffle_order[num_eval:]
         train_idx = idx[train_indices]
@@ -104,7 +109,7 @@ def load_dataset(
                 train_idx,
                 objects,
                 train_weights,
-                manifold,
+                data_config.manifold,
                 n_graph_neighbors,
                 n_manifold_neighbors,
                 n_rand_neighbors,

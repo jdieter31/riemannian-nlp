@@ -4,9 +4,6 @@ import torch
 
 from .manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold, ProductManifold, PoincareBall
 
-from sacred import Experiment
-from sacred.observers import FileStorageObserver
-
 from .data.data_ingredient import data_ingredient, load_dataset, get_adjacency_dict
 from .embed_save import save_ingredient, load_model
 from .embed_eval import eval_ingredient
@@ -28,9 +25,10 @@ import numpy as np
 import torch.multiprocessing as mp
 from datetime import datetime
 
-ex = Experiment('Embed', ingredients=[eval_ingredient, data_ingredient, save_ingredient, model_ingredient, lr_schedule_ingredient])
+import wandb
 
-ex.observers.append(FileStorageObserver.create("experiments"))
+# Initialize wandb dashboard
+wandb.init(project="retrofitting-manifolds")
 
 logger = logging.getLogger('Embeddings')
 logger.setLevel(logging.INFO)
@@ -47,8 +45,6 @@ ch.setFormatter(formatter)
 
 # add ch to logger
 logger.addHandler(ch)
-
-ex.logger = logger
 
 @ex.config
 def config():
@@ -190,7 +186,7 @@ def embed(
                     thread.close()
                 except:
                     thread.terminate()
-            embed_eval.close_thread(wait_to_finish=True)
+            # embed_eval.close_thread(wait_to_finish=True)
             logging_thread.close_thread(wait_to_finish=True)
 
     else:
@@ -198,7 +194,7 @@ def embed(
         try:
             train(*args)
         finally:
-            embed_eval.close_thread(wait_to_finish=True)
+            # embed_eval.close_thread(wait_to_finish=True)
             logging_thread.close_thread(wait_to_finish=True)
     
 if __name__ == '__main__':

@@ -62,10 +62,45 @@ def config():
             }
           ]
         }
+      },
+      {
+        "name": "ProductManifold",
+        "params": {
+          "submanifolds": [
+            {
+              "dimension": 100,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 100,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 100,
+              "name": "PoincareBall"
+            },
+            {
+              "dimension": 100,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 100,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 100,
+              "name": "SphericalManifold"
+            },
+            {
+              "dimension": 300,
+              "name": "EuclideanManifold"
+            }
+          ]
+        }
       }
     ]
     intermediate_manifold_gen_products = None
-    intermediate_dims = [2700]
+    intermediate_dims = [2700, 900]
     sparse = True
     double_precision = False
     manifold_initialization = {
@@ -85,11 +120,11 @@ def config():
     nonlinearity = None
     num_poles = 1
     tries = 10
-    num_layers = 1
+    num_layers = 2
 
     featurizer_name = "conceptnet"
     cn_vector_frame_file = "data/glove_w2v_merge.h5"
-    input_manifold = "Spherical"
+    input_manifold = "Euclidean"
 
 @model_ingredient.capture
 def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products, featurizer_name, cn_vector_frame_file, input_manifold):

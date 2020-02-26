@@ -219,7 +219,7 @@ class FeaturizedModelEmbedding(nn.Module):
         in_manifold.proj_(self.input_embedding.weight)
         self.deltas = deltas
         if deltas:
-            self.main_deltas = Embedding(torch.sum(self.index_map >= 0), out_dim, sparse=True)
+            self.main_deltas = Embedding(torch.sum(self.index_map >= 0), out_dim, sparse=False)
             with torch.no_grad():
                 self.main_deltas.weight /= 100
 
@@ -227,7 +227,7 @@ class FeaturizedModelEmbedding(nn.Module):
         self.additional_index_map = None
         num_non_featurized = torch.sum(self.index_map < 0)
         if num_non_featurized > 0:
-            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim, sparse=True)
+            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim, sparse=False)
             self.additional_embeddings.to(device)
             self.additional_embeddings.weight.data = torch.tensor(additional_embeddings_init.weight, requires_grad=True)
             additional_embeddings_norm = self.additional_embeddings.weight.norm(dim=-1)
@@ -241,7 +241,7 @@ class FeaturizedModelEmbedding(nn.Module):
                 in_manifold.proj_(self.additional_embeddings.weight)
             '''
             if deltas:
-                self.additional_deltas = Embedding(num_non_featurized, out_dim, sparse=True)
+                self.additional_deltas = Embedding(num_non_featurized, out_dim, sparse=False)
                 with torch.no_grad():
                     self.additional_deltas.weight /= 100
 
@@ -481,7 +481,7 @@ def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=t
     neg_count = 0
     if not gen_data:
         raw_data = load(vector_file)
-        embedding = Embedding.from_pretrained(torch.as_tensor(raw_data["main"]["weight"]).to(device))
+        embedding = Embedding.from_pretrained(torch.as_tensor(raw_data["main"]["weight"]).to("cpu"))
         additional_embedding = Embedding.from_pretrained(torch.as_tensor(raw_data["additional"]["weight"]).to(device))
         index_map = raw_data["index_map"].to(device)
 
