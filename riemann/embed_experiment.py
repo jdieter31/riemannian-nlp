@@ -92,7 +92,7 @@ def config():
     }
     sample_neighbors_every = 1
     resume_training = False
-    
+
 
 @ex.command
 def embed(
@@ -136,7 +136,7 @@ def embed(
             model = FeaturizedModelEmbedding(model, data.features, save_data["in_manifold"], embed_manifold, embed_manifold_dim, device=device)
     else:
         model = gen_model(data, device, embed_manifold, embed_manifold_dim)
-        
+
     if train_threads > 1:
         mp.set_sharing_strategy('file_system')
         model = model.share_memory()
@@ -169,7 +169,7 @@ def embed(
                 # {'params': curvature_scale[:2], 'lr':0.001}
             ], lr=get_base_lr(), adam_for_euc=False)
     lr_scheduler = get_lr_scheduler(optimizer)
-    
+
     threads = []
     if train_threads > 1:
         try:
@@ -196,7 +196,7 @@ def embed(
         finally:
             # embed_eval.close_thread(wait_to_finish=True)
             logging_thread.close_thread(wait_to_finish=True)
-    
+
 if __name__ == '__main__':
     ex.run_commandline()
 

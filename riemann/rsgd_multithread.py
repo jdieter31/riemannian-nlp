@@ -18,9 +18,11 @@ class RiemannianSGD(Optimizer):
             adam_for_euc=True
     ):
         self.adam_optimizer = None
+
         if adam_for_euc:
             riemann_params = []
             adam_params = []
+
             for param in params:
                 if isinstance(param, ManifoldParameter) and not isinstance(param.manifold, EuclideanManifold):
                     riemann_params.append(param)
@@ -41,6 +43,7 @@ class RiemannianSGD(Optimizer):
         """Performs a single optimization step. Returns gradient norm
 
         """
+
         if self.adam_optimizer is not None:
             self.adam_optimizer.step()
         norms = []
@@ -50,6 +53,7 @@ class RiemannianSGD(Optimizer):
                     if p.grad is None:
                         continue
                     lr = group['lr']
+
                     if isinstance(p, ManifoldParameter):
                         manifold = p.manifold
                         lr *= p.lr_scale
@@ -58,6 +62,7 @@ class RiemannianSGD(Optimizer):
 
                     d_p = p.grad.data
                     # Must only have sparse rows otherwise this will get messed up
+
                     if d_p.is_sparse:
                         if d_p._nnz() == 0:
                             continue
@@ -67,6 +72,7 @@ class RiemannianSGD(Optimizer):
                         norms.append(torch.flatten(d_p._values()).norm().cpu().detach())
 
                         manifold.rgrad_(p[indices], d_p._values())
+
                         if self.clip_grads:
                             if d_p._values().max() > self.clip_val or d_p._values().min() < -self.clip_val:
                                 write_log(f"Warning -- riemannian-gradients were clipped on {manifold} with max_val {d_p._values().abs().max()}")
@@ -77,10 +83,12 @@ class RiemannianSGD(Optimizer):
                         d_p = p.grad.data
                         norms.append(torch.flatten(d_p).norm().cpu().detach())
                         manifold.rgrad_(p.data, d_p)
+
                         if self.clip_grads:
                             if d_p.max() > self.clip_val or d_p.min() < -self.clip_val:
                                 write_log(f"Warning -- gradients were clipped on {manifold} with max_val {d_p.abs().max()}")
                             d_p = d_p.clamp(-self.clip_val, self.clip_val)
                         manifold.retr_(p.data, d_p * (-lr))
+
         return float(torch.tensor(norms).norm().cpu().detach().numpy())
 
