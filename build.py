@@ -23,8 +23,8 @@ if is_clang():
 
 # use cythonize to build the extensions
 extensions = [Extension(
-        "riemann.data.graph_dataset",
-        ["riemann/data/graph_dataset.pyx"],
+        "riemann.data.graph_data_batch_iterator",
+        ["riemann/data/graph_data_batch_iterator.pyx"],
         include_dirs=[numpy.get_include(), "."],
         extra_compile_args = extra_compile_args,
         language='c++',

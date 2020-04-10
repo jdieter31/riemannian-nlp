@@ -1,5 +1,10 @@
 import argparse
 from riemann.config.config_loader import initialize_config
+import wandb
+from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
+from riemann.train import train
+from riemann.model import get_model
+from riemann.data.data_loader import get_training_data
 
 parser = argparse.ArgumentParser(description='Tool to train graph embeddings \
                                  as detailed in "Retrofitting Manifolds to \
@@ -10,9 +15,23 @@ parser.add_argument('-f', '--config_file', type=str, default=None, help=\
                     "File to load config from")
 
 def run(args):
+    # Initialize wandb dashboard
+    # wandb.init(project="retrofitting-manifolds")
+
+    # Initialize Config
     initialize_config(args.config_file, load_config=
                       (args.config_file is not None),
                       config_updates=args.config_updates)
+
+    data = get_training_data()
+
+    # Generate model
+    model = get_model(data)
+    
+    # Train
+    train_schedule = GraphEmbeddingTrainSchedule(model)
+    train(train_schedule)
+    
 
 parser.set_defaults(func=run)
 

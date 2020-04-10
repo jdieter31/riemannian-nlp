@@ -13,9 +13,9 @@ class RiemannianSGD(Optimizer):
             self,
             params,
             lr=0.001,
-            clip_grads=True,
+            clip_grads=False,
             clip_val=10,
-            adam_for_euc=True
+            adam_for_euc=False
     ):
         self.adam_optimizer = None
 
@@ -40,8 +40,8 @@ class RiemannianSGD(Optimizer):
         super(RiemannianSGD, self).__init__(params, defaults)
 
     def step(self, **kwargs):
-        """Performs a single optimization step. Returns gradient norm
-
+        """
+        Performs a single optimization step. Returns gradient norm
         """
 
         if self.adam_optimizer is not None:

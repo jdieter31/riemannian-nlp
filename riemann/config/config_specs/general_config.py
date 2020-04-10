@@ -1,6 +1,5 @@
 from ..config import ConfigDict
 from ..manifold_config import ManifoldConfig
-from ..manifold_initialization_config import ManifoldInitializationConfig
 
 CONFIG_NAME = "general"
 

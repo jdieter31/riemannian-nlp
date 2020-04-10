@@ -12,43 +12,47 @@ import importlib
 import sys
 import inspect
 
-config_specs: Dict = {}
-
-for (module_loader, name, ispkg) in pkgutil.iter_modules([os.path.dirname(__file__) + "/config_specs"]):
-
-    # Run register_config_spec for each detected config_spec
-    importlib.import_module(".config_specs." + name, __package__)
-    pkg_name = __package__ + '.config_specs.' + name
-    obj = sys.modules[pkg_name]
-    for dir_name in dir(obj):
-        if dir_name.startswith('_') or dir_name == "ConfigDict":
-            # Continue if private member or the ConfigDict class itself
-            continue
-
-        dir_obj = getattr(obj, dir_name)
-        if not inspect.isclass(dir_obj):
-            # Continue if not a class
-            continue
-
-        if issubclass(dir_obj, ConfigDict):
-            if dir_obj.__module__ != pkg_name:
-                # Continue if this comes from another file
-                continue
-
-            if not hasattr(obj, "CONFIG_NAME"):
-                raise Exception(f"{dir_name} object not contained in a file \
-                                with variable CONFIG_NAME")
-            if obj.CONFIG_NAME not in config_specs.keys():
-                # If not already added add this config_spec
-                config_specs[obj.CONFIG_NAME] = dir_obj
 
 class GlobalConfigDictMeta(type):
     """
     Meta-class for GlobalConfigDict - programmatically injects each ConfigDic
     sublass in config_specs into GlobalConfigDict as well as type hints
     """
+    @staticmethod
+    def _get_config_specs():
+        config_specs: Dict = {}
+
+        for (module_loader, name, ispkg) in pkgutil.iter_modules([os.path.dirname(__file__) + "/config_specs"]):
+
+            # Run register_config_spec for each detected config_spec
+            importlib.import_module(".config_specs." + name, __package__)
+            pkg_name = __package__ + '.config_specs.' + name
+            obj = sys.modules[pkg_name]
+            for dir_name in dir(obj):
+                if dir_name.startswith('_') or dir_name == "ConfigDict":
+                    # Continue if private member or the ConfigDict class itself
+                    continue
+
+                dir_obj = getattr(obj, dir_name)
+                if not inspect.isclass(dir_obj):
+                    # Continue if not a class
+                    continue
+
+                if issubclass(dir_obj, ConfigDict):
+                    if dir_obj.__module__ != pkg_name:
+                        # Continue if this comes from another file
+                        continue
+
+                    if not hasattr(obj, "CONFIG_NAME"):
+                        raise Exception(f"{dir_name} object not contained in a file \
+                                        with variable CONFIG_NAME")
+                    if obj.CONFIG_NAME not in config_specs.keys():
+                        # If not already added add this config_spec
+                        config_specs[obj.CONFIG_NAME] = dir_obj
+        return config_specs
+
     def __new__(mcs, name, bases, namespace, **kwds):
-        for name, config_spec in config_specs.items():
+        for name, config_spec in GlobalConfigDictMeta._get_config_specs().items():
             if '__annotations__' not in namespace:
                 namespace['__annotations__'] = {}
 

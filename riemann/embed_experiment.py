@@ -126,6 +126,7 @@ def embed(
     tensorboard_watch = {
             "hyper_scale": curvature_scale[0],
             "sphere_scale": curvature_scale[1]
+from .data.batching import FunctionBatchTask
             }
     data, eval_data = load_dataset(embed_manifold)
     embed_eval.initialize_eval(adjacent_list=get_adjacency_dict(data))
