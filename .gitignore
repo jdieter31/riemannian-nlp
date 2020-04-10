@@ -109,13 +109,13 @@ graph-tool-2.29.tar.bz2
 graph-tool-2.29/**
 
 # Output generated when running experiments
-experiments/
-runs/
-models/
+/experiments
+/runs
+/models
 
 # Common data and resources
-resources
-data
+/resources
+/data
 
 #
 .spell-conda.yml
