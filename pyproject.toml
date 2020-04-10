@@ -35,6 +35,7 @@ cython = "~0.29.14"
 nltk = "~3.4"
 tensorboard = "~2.1"
 embedding_evaluation = { git = "https://github.com/arunchaganty/embedding_evaluation.git", branch="master" }
+wandb = "^0.8.31"
 
 [tool.poetry.dev-dependencies]
 pytest = "~3.0"
