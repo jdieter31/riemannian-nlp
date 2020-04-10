@@ -2,7 +2,9 @@ from typing import Callable, List
 from torch.optim.optimizer import Optimizer
 from torch.optim import Adam
 import torch.nn as nn
-from .config.config_loader import get_config
+from ..config.config_loader import get_config
+from ..data.batching import BatchTask, DataBatch
+import torch
 
 class SingleLossProcessor(BatchTask):
     """
@@ -12,7 +14,7 @@ class SingleLossProcessor(BatchTask):
 
     def __init__(self,
                  loss: Callable[[DataBatch], torch.Tensor],
-                 optimizer: Optimizer,
+                 optimizer: Optimizer):
         """
         Params:
             loss: function that takes in a DataBatch and outputs the

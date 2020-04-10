@@ -1,5 +1,6 @@
 from torch.optim.optimizer import Optimizer
 from .rsgd_multithread import RiemannianSGD
+from typing import List
 
 optimizer = None
 
@@ -22,7 +23,7 @@ def get_optimizer() -> Optimizer:
     with register_parameter_group before calling this
     """
 
-    global obtimizer
+    global optimizer
 
     if optimizer is None:
         optimizer = RiemannianSGD(parameter_groups)

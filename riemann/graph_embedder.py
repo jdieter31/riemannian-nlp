@@ -5,6 +5,8 @@ from .manifold_initialization import initialize_manifold_tensor
 from .manifolds import RiemannianManifold
 from .manifold_tensors import ManifoldParameter
 from .config.manifold_config import ManifoldConfig
+from typing import List, Callable
+from .data.batching import DataBatch
 
 class GraphEmbedder(ABC):
     """
@@ -66,7 +68,7 @@ class ManifoldEmbedding(Embedding, GraphEmbedder):
     def get_embedding_matrix(self):
         return self.weight.data
 
-    def get_manifold(self): -> RiemannianManifold:
+    def get_manifold(self) -> RiemannianManifold:
         return self.manifold
 
     def embed_nodes(self, node_ids):

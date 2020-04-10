@@ -1,8 +1,8 @@
-from .graph_embedder import GraphEmbedder
+from ..graph_embedder import GraphEmbedder
 import torch
 from torch.nn.functional import relu
-from .data.graph_data_batch import GraphDataBatch
-
+from ..data.graph_data_batch import GraphDataBatch
+from ..manifolds import RiemannianManifold
 
 def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                manifold: RiemannianManifold, margin=0.01,
@@ -24,7 +24,7 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
         pytorch scalar: Computed loss
     """
     
-    input_embeddings = model.embed_nodes(inputs)
+    input_embeddings = model.embed_nodes(batch.get_tensors()["vertices"])
 
     # Isolate portion of input that are neighbors
     sample_vertices = model.embed_nodes(batch.get_tensors()["neighbors"])
@@ -45,9 +45,9 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     manifold_dists_sorted = scale_function(manifold_dists_sorted)
     diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1],
                          manifold_dists.size()[1]]
-    row_expanded =
-        manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
-    column_expanded =
+    row_expanded = \
+            manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
+    column_expanded = \
         manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
 
     # Produce matrix where the i,j element is d_i - d_j + margin
@@ -56,9 +56,9 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     diff_matrix = row_expanded - column_expanded + margin
 
     train_dists_sorted = torch.gather(train_distances, -1, sorted_indices)
-    train_row_expanded =
+    train_row_expanded = \
         train_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
-    train_column_expanded =
+    train_column_expanded = \
         train_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
     diff_matrix_train = train_row_expanded - train_column_expanded
     # Zero out portions of diff matrix where neighbors are of equal distance

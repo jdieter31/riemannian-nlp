@@ -58,7 +58,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
 
         margin_loss = lambda data_batch: \
                 graph_manifold_margin_loss(self.model, data_batch, manifold,
-                                           margin) 
+                                           loss_config.margin) 
         return [margin_loss]
 
     def _get_tasks_for_batch(self):

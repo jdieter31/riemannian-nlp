@@ -16,7 +16,7 @@ parser.add_argument('-f', '--config_file', type=str, default=None, help=\
 
 def run(args):
     # Initialize wandb dashboard
-    # wandb.init(project="retrofitting-manifolds")
+    wandb.init(project="retrofitting-manifolds")
 
     # Initialize Config
     initialize_config(args.config_file, load_config=

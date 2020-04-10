@@ -33,7 +33,7 @@ def get_model(data: GraphDataset) -> GraphEmbedder:
             sparse=model_config.sparse,
             manifold_initialization=
             model_config.manifold_initialization.get_initialization_dict())
-        register_parameter_group(model)
+        register_parameter_group(model.parameters())
 
     return model
 

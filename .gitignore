@@ -123,3 +123,9 @@ riemann/data/*.cpp
 #
 .spell-conda.yml
 
+# old run folders
+runs-*
+
+# Weights and biases
+wandb/
+
