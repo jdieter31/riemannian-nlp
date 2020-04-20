@@ -12,31 +12,33 @@ import time
 import torch
 import os
 
-model = None
+__model = None
 
 def get_model(data: GraphDataset) -> GraphEmbedder:
     """
     Loads graph embedding model based on model config
     """
+    global __model
 
-    global model
-
-    if model is None:
+    if __model is None:
         model_config = get_config().model
         general_config = get_config().general
 
         embed_manifold = general_config.embed_manifold.get_manifold_instance()
-        model = ManifoldEmbedding(
+        __model = ManifoldEmbedding(
             embed_manifold, 
             data.n_nodes(),
             general_config.embed_manifold_dim,
             sparse=model_config.sparse,
             manifold_initialization=
             model_config.manifold_initialization.get_initialization_dict())
-        register_parameter_group(model.parameters())
+        register_parameter_group(__model.parameters())
 
-    return model
+    return __model
 
+
+# TODO(jdieter): is this function still necessary, or is it subsumed by `get_model`? It doesn't
+#                seem to get called anywhere?
 def gen_model(data, device, manifold_out, manifold_out_dim, model_type, sparse, double_precision, manifold_initialization, intermediate_manifolds, intermediate_dims, nonlinearity, num_poles, num_layers, intermediate_manifold_gen_products, featurizer_name, cn_vector_frame_file, input_manifold):
     model_config = get_config().model
     
