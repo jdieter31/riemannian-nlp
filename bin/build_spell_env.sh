@@ -22,12 +22,6 @@ output=$1;
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "${DIR}/.."
 
-PYTHONROOT=$(poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
-if [ ! -d $PYTHONROOT ]; then
-  echo 'Missing virtual environment in $PYTHONROOT.'
-  exit 1;
-fi;
-
 # A list of packages to filter from 'pip freeze'. These packages are
 # require a link to be # installed (embedding_evaluation) that will be
 # explicitly provided in EXTRAS.
@@ -54,7 +48,7 @@ dependencies:
     - spell
 EOF
 # 2. Add all the dependencies from pip (except those in the blacklist)
-$PYTHONROOT/bin/pip freeze | grep -Ev $(echo $BLACKLIST | sed 's/ /|/g') | sed 's/^/    - /' >> $output;
+poetry run pip freeze | grep -Ev $(echo $BLACKLIST | sed 's/ /|/g') | sed 's/^/    - /' >> $output;
 
 # 3. Add any additional dependencies
 for dep in ${EXTRAS[@]}; do
