@@ -36,6 +36,9 @@ nltk = "~3.4"
 tensorboard = "~2.1"
 embedding_evaluation = { git = "https://github.com/arunchaganty/embedding_evaluation.git", branch="master" }
 wandb = "^0.8.31"
+wordfreq = "^2.2.2"
+ordered_set = "^3.1.1"
+lark-parser = "^0.8.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "~3.0"
