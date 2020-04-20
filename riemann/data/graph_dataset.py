@@ -1,7 +1,7 @@
 from typing import Iterator, Dict
 from .graph_data_batch import GraphDataBatch
 from .graph_data_batch_iterator import GraphDataBatchIterator
-from graph_tool.all import Graph
+from graph_tool import Graph
 import numpy as np
 from tqdm import tqdm
 from .pickle_manager import load_or_gen
