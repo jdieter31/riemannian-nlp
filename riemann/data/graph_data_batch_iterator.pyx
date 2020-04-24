@@ -20,7 +20,7 @@ from libc.stdio cimport printf
 import threading
 import queue
 import copy
-from graph_tool.all import Graph
+from graph_tool import Graph
 from ..manifold_nns import ManifoldNNS
 from tqdm import tqdm
 from math import ceil

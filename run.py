@@ -5,14 +5,6 @@ from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model
 from riemann.data.data_loader import get_training_data
 
-parser = argparse.ArgumentParser(description='Tool to train graph embeddings \
-                                 as detailed in "Retrofitting Manifolds to \
-                                 Semantic Graphs"')
-parser.add_argument('-u', '--config_updates', type=str, default="", help=\
-                    "Extra configuration to inject into config dict")
-parser.add_argument('-f', '--config_file', type=str, default=None, help=\
-                    "File to load config from")
-
 def run(args):
     # Initialize wandb dashboard
     wandb.init(project="retrofitting-manifolds")
@@ -32,12 +24,16 @@ def run(args):
     train_schedule.train()
     
 
-parser.set_defaults(func=run)
-
 if __name__ == "__main__":
-    #subparsers = parser.add_subparsers()
-    #command_parser = subparsers.add_parser('command', help='' )
-    #command_parser.set_defaults(func=do_command)
+    parser = argparse.ArgumentParser(description='Tool to train graph embeddings \
+                                 as detailed in "Retrofitting Manifolds to \
+                                 Semantic Graphs"')
+    parser.add_argument('-u', '--config_updates', type=str, default="", help= \
+        "Extra configuration to inject into config dict")
+    parser.add_argument('-f', '--config_file', type=str, default=None, help= \
+        "File to load config from")
+    parser.set_defaults(func=run)
+
     ARGS = parser.parse_args()
     if ARGS.func is None:
         parser.print_help()

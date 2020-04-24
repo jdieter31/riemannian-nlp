@@ -10,13 +10,15 @@ that graph-tool is installed: \
 https://git.skewed.de/count0/graph-tool/wikis/installation-instructions")
 endif
 
-# try to get the python root from poetry 
+# Try to get the python root from poetry 
+# NOTE: this target will fail when run on spell, where 'poetry' is not
+# installed.
 PYTHONROOT := $(shell poetry run env | grep "VIRTUAL_ENV" | sed -r 's/VIRTUAL_ENV=(.*)/\1/' 2> /dev/null)
-# ifeq (${PYTHONROOT},)
-# $(error "Could not find a poetry virtual environment. \
-# Make sure you have poetry installed and have run `poetry install` at \
-# least once.")
-# endif
+ifeq (${PYTHONROOT},)
+$(info "Could not find a poetry virtual environment. \
+Make sure you have poetry installed and have run `poetry install` at \
+least once.")
+endif
 
 all: graph-tool-installed poetry-installed
 	
