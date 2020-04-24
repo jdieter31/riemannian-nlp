@@ -7,6 +7,9 @@ from tqdm import tqdm
 from .pickle_manager import load_or_gen
 from ..config.graph_sampling_config import GraphSamplingConfig
 from ..config.config_loader import get_config
+from ..graph_embedder import GraphEmbedder
+from ..manifold_nns import ManifoldNNS
+from ..config.config_loader import get_config
 from math import floor
 
 class GraphDataset:
@@ -43,6 +46,7 @@ class GraphDataset:
         self.weight_property = self.graph.new_edge_property("float")
         eprops = [self.weight_property]  
         self.graph.add_edge_list(edge_weights, eprops=eprops)
+        self.manifold_nns = None
 
     def gen_neighbor_data(self, verbose=True) -> Dict:
         """
@@ -102,6 +106,11 @@ class GraphDataset:
             "N": self.n_nodes()
         }
 
+    def add_manifold_nns(self, graph_embedder: GraphEmbedder):
+        manifold = graph_embedder.get_manifold()
+        data_points = graph_embedder.retrieve_nodes(self.n_nodes())
+        self.manifold_nns = ManifoldNNS(data_points, manifold)
+
     def n_nodes(self) -> int:
         """
         Returns the number of nodes in the graph
@@ -109,22 +118,38 @@ class GraphDataset:
         return len(self.object_ids)
 
     def get_neighbor_iterator(self, 
-                              graph_sampling_config: GraphSamplingConfig) -> Iterator[GraphDataBatch]:
+                              graph_sampling_config: GraphSamplingConfig,
+                              data_fraction: float=1,
+                             ) -> Iterator[GraphDataBatch]:
         """
         Gets an efficient iterator of edge batches
-
         """
         neighbor_data = load_or_gen(f"GraphDataset.{self.name}",
                                     self.gen_neighbor_data)
         if self.hidden_graph is None:
-            return GraphDataBatchIterator(neighbor_data, graph_sampling_config)
+            iterator = GraphDataBatchIterator(neighbor_data,
+                                              graph_sampling_config)
+            iterator.data_fraction = data_fraction
+
         else:
             hidden_neighbor_data = load_or_gen(
                 f"GraphDataset.{self.hidden_graph.name}", 
                 self.hidden_graph.gen_neighbor_data)
 
-            return GraphDataBatchIterator(neighbor_data,
+            iterator = GraphDataBatchIterator(neighbor_data,
                 graph_sampling_config, hidden_neighbor_data)
+            iterator.data_fraction = data_fraction
+
+        if self.manifold_nns is not None:
+            sampling_config = get_config().sampling
+            _, nns = \
+                self.manifold_nns.knn_query_all(sampling_config.manifold_nn_k)
+            
+            all_manifold_neighbors = [nns[i][1:].astype(np.int64) for i in
+                                      range(self.n_nodes())]
+            iterator.refresh_manifold_nn(all_manifold_neighbors)
+
+        return iterator
 
     @classmethod
     def make_train_eval_split(cls, name, edges, object_ids, weights):

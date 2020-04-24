@@ -7,6 +7,8 @@ from .config.config_loader import get_config
 from .graph_embedder import GraphEmbedder, ManifoldEmbedding
 from .data.graph_dataset import GraphDataset
 from .optimizer_gen import register_parameter_group
+from .device_manager import get_device
+from .data.data_loader import get_training_data
 import random
 import time
 import torch
@@ -14,12 +16,13 @@ import os
 
 model = None
 
-def get_model(data: GraphDataset) -> GraphEmbedder:
+def get_model() -> GraphEmbedder:
     """
     Loads graph embedding model based on model config
     """
 
     global model
+    data = get_training_data()
 
     if model is None:
         model_config = get_config().model
@@ -33,6 +36,7 @@ def get_model(data: GraphDataset) -> GraphEmbedder:
             sparse=model_config.sparse,
             manifold_initialization=
             model_config.manifold_initialization.get_initialization_dict())
+        model.to(get_device())
         register_parameter_group(model.parameters())
 
     return model

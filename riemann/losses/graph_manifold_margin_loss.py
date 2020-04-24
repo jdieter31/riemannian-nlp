@@ -24,8 +24,6 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
         pytorch scalar: Computed loss
     """
     
-    input_embeddings = model.embed_nodes(batch.get_tensors()["vertices"])
-
     # Isolate portion of input that are neighbors
     sample_vertices = model.embed_nodes(batch.get_tensors()["neighbors"])
 
@@ -36,7 +34,8 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
 
     manifold_dists = manifold.dist(main_vertices, sample_vertices)
 
-    train_distances = batch.get_tensors()["train_distances"]
+    train_distances = \
+        batch.get_tensors()["train_distances"].to(main_vertices.device)
 
     # Sort neighbors based on given distance
     sorted_indices = train_distances.argsort(dim=-1)

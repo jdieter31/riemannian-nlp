@@ -43,7 +43,6 @@ cdef class GraphDataBatchIterator:
     cdef public int n_graph_neighbors, n_manifold_neighbors, n_rand_neighbors, N, N_non_trivial, N_non_trivial_train, batch_size, current, num_workers
     cdef public float data_fraction
     cdef public bool is_eval
-    cdef public bool compute_train_ranks
     cdef object queue
     cdef long[:] graph_neighbors
     cdef long[:] graph_neighbors_indices
@@ -98,7 +97,6 @@ cdef class GraphDataBatchIterator:
         
         if train_neighbor_data is not None:
             self.is_eval = True 
-            self.compute_train_ranks = False
 
             self.non_empty_indices_train = \
                 train_neighbor_data["non_empty_vertices"]
@@ -131,14 +129,14 @@ cdef class GraphDataBatchIterator:
             i = i + 1
         indices[i] = current
 
-    def refresh_manifold_nn(self, manifold_neighbors):
+    def refresh_manifold_nn(self, all_manifold_neighbors):
         """
         Refreshes the manifold near neighbor samples. If n_manifold_neighbors
         is not zero this must be ran before __iter__ to ensure uninitialized
         data is not sampled.
         
         Params:
-            manifold_neighbors (numpy long): array of shape [nodes,
+            manifold_neighbors (list of numpy long): array of shape [nodes,
                 num_neighbors] where manifold_neighbors[i] is a sorted list of
                 the closest near neighbors to the vertex with index i
         """
@@ -150,13 +148,12 @@ cdef class GraphDataBatchIterator:
         _, nns = manifold_nns.knn_query_all(self.manifold_nn_k, self.nn_workers)
         print("Processing near neighbor data...")
         all_manifold_neighbors = [nns[i][1:].astype(np.int64) for i in range(self.N)]
-        self.manifold_neighbors = np.concatenate(all_manifold_neighbors)
         """
 
-        self.manifold_neighbors = manifold_neighbors
+        self.manifold_neighbors = np.concatenate(all_manifold_neighbors)
         self.manifold_neighbors_indices = \
-            np.empty([len(manifold_neighbors) + 1], dtype=np.int64)
-        self.get_1d_index_list(manifold_neighbors,
+            np.empty([len(all_manifold_neighbors) + 1], dtype=np.int64)
+        self.get_1d_index_list(all_manifold_neighbors,
                                self.manifold_neighbors_indices)
         print("Finished processing near neighbor data.")
 
@@ -165,12 +162,8 @@ cdef class GraphDataBatchIterator:
         difs = []
         self.graph_neighbor_difs.clear()
         cdef int i = 0
-        if self.is_eval:
-            n_non_trivial = self.N_non_trivial_train if self.compute_train_ranks else self.N_non_trivial
-            graph_neighbors_indices = self.train_graph_neighbors_indices if self.compute_train_ranks else self.graph_neighbors_indices
-        else:
-            n_non_trivial = self.N_non_trivial
-            graph_neighbors_indices = self.graph_neighbors_indices
+        n_non_trivial = self.N_non_trivial
+        graph_neighbors_indices = self.graph_neighbors_indices
         while i < n_non_trivial:
             num_neighbors = graph_neighbors_indices[i + 1] - graph_neighbors_indices[i]
             dif = num_neighbors - self.n_graph_neighbors
@@ -186,7 +179,7 @@ cdef class GraphDataBatchIterator:
             self.graph_neighbor_permutations = np.stack(graph_neighbor_permutations)
 
     def __iter__(self):
-        n_non_trivial = self.N_non_trivial_train if self.is_eval and self.compute_train_ranks else self.N_non_trivial
+        n_non_trivial = self.N_non_trivial
         self.perm = np.random.permutation(n_non_trivial)
         self.initialize_graph_perms()
         self.current = 0
@@ -203,7 +196,7 @@ cdef class GraphDataBatchIterator:
         cdef long count
         cdef int current
         
-        n_non_trivial = self.N_non_trivial_train if self.is_eval and self.compute_train_ranks else self.N_non_trivial
+        n_non_trivial = self.N_non_trivial
         while self.current < ceil(n_non_trivial * self.data_fraction):
             current = self.current
             self.current += self.batch_size
@@ -228,8 +221,7 @@ cdef class GraphDataBatchIterator:
         return self.__iter__()
 
     def __len__(self):
-        n_non_trivial = self.N_non_trivial_train if self.is_eval \
-                and self.compute_train_ranks else self.N_non_trivial
+        n_non_trivial = self.N_non_trivial
         return int(np.ceil(float(
             ceil(self.data_fraction * n_non_trivial)) / self.batch_size))
 
@@ -271,16 +263,10 @@ cdef class GraphDataBatchIterator:
         j = 0
         while j < self.batch_size and i + j < self.perm.shape[0]:
             ntries = 0
-            if self.is_eval and self.compute_train_ranks:
-                vertex = self.non_empty_indices_train[self.perm[i + j]]
-                vertices[j, 0] = vertex
-                neighbors_index = self.train_graph_neighbors_indices[self.perm[i + j]]
-                neighbors_length = self.train_graph_neighbors_indices[self.perm[i + j] + 1] - neighbors_index
-            else:
-                vertex = self.non_empty_indices[self.perm[i + j]]
-                vertices[j, 0] = vertex
-                neighbors_index = self.graph_neighbors_indices[self.perm[i + j]]
-                neighbors_length = self.graph_neighbors_indices[self.perm[i + j] + 1] - neighbors_index
+            vertex = self.non_empty_indices[self.perm[i + j]]
+            vertices[j, 0] = vertex
+            neighbors_index = self.graph_neighbors_indices[self.perm[i + j]]
+            neighbors_length = self.graph_neighbors_indices[self.perm[i + j] + 1] - neighbors_index
             k = 0
 
             extra_rand_samples = 0
@@ -289,11 +275,10 @@ cdef class GraphDataBatchIterator:
             total_graph_samples = self.n_graph_neighbors - extra_rand_samples
             excluded_samples = unordered_set[long]()
             excluded_samples.insert(vertex)
-            if (not self.is_eval) or (not self.compute_train_ranks):
-                k = 0
-                while k < neighbors_length:
-                    excluded_samples.insert(self.graph_neighbors[neighbors_index + k])
-                    k = k + 1
+            k = 0
+            while k < neighbors_length:
+                excluded_samples.insert(self.graph_neighbors[neighbors_index + k])
+                k = k + 1
             if self.is_eval:
                 train_neighbors_index = self.train_graph_neighbors[self.perm[i + j]]
                 train_neighbors_length = self.train_graph_neighbors_indices[self.perm[i + j] + 1] - train_neighbors_index
@@ -307,19 +292,11 @@ cdef class GraphDataBatchIterator:
             while k < 1+total_graph_samples:
                 if size_dif > 0:
                     permutation_index = self.graph_neighbor_difs[size_dif]
-                    if self.is_eval and self.compute_train_ranks:
-                        vertices[j, k] = self.train_graph_neighbors[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]]
-                        graph_dists[j,k - 1] = 1 + 1 / (self.train_graph_neighbor_weights[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]] + 2)
-                    else:
-                        vertices[j, k] = self.graph_neighbors[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]]
-                        graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]] + 2)
+                    vertices[j, k] = self.graph_neighbors[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]]
+                    graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + self.graph_neighbor_permutations[permutation_index][k - 1]] + 2)
                 else:
-                    if self.is_eval and self.compute_train_ranks:
-                        vertices[j, k] = self.train_graph_neighbors[neighbors_index + k - 1]
-                        graph_dists[j,k - 1] = 1 + 1 / (self.train_graph_neighbor_weights[neighbors_index + k - 1] + 2)
-                    else:
-                        vertices[j, k] = self.graph_neighbors[neighbors_index + k - 1]
-                        graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + k - 1] + 2)
+                    vertices[j, k] = self.graph_neighbors[neighbors_index + k - 1]
+                    graph_dists[j,k - 1] = 1 + 1 / (self.graph_neighbor_weights[neighbors_index + k - 1] + 2)
                 k = k + 1
                 current_index = k
             if self.n_manifold_neighbors > 0:

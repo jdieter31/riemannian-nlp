@@ -93,7 +93,6 @@ def config():
     sample_neighbors_every = 1
     resume_training = False
 
-
 @ex.command
 def embed(
         n_epochs,

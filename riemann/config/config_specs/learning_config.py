@@ -10,4 +10,6 @@ class LearningConfig(ConfigDict):
     grad_norm_initial_refresh_rate: int = 500
     grad_norm_alpha: float = 0.6
 
+    lr: float = 0.1
+
 

@@ -17,9 +17,9 @@ class DataConfig(ConfigDict):
     graph_data_format: str = "hdf5"
     symmetrize: bool = False
     num_workers: int = 5
-    n_graph_neighbors: int = 10
+    n_graph_neighbors: int = 20
     n_manifold_neighbors: int = 0
-    n_rand_neighbors: int = 5
+    n_rand_neighbors: int = 30
     batch_size: int = 2000
     manifold_nn_k: int = 30
     delimiter: str = "\t"

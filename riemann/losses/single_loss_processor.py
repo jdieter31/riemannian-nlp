@@ -5,6 +5,7 @@ import torch.nn as nn
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
 import torch
+import wandb
 
 class SingleLossProcessor(BatchTask):
     """
@@ -25,7 +26,6 @@ class SingleLossProcessor(BatchTask):
         self.optimizer = optimizer
         self.iterations = 0
 
-
     def process_batch(self, batch: DataBatch):
         """
         Runs both the grad norm weighting optimizer as well as the main loss
@@ -39,3 +39,10 @@ class SingleLossProcessor(BatchTask):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+
+        wandb.log({"train/loss": float(loss.cpu().detach().numpy())},
+                  step=self.iterations)
+
+        self.iterations += 1
+
+

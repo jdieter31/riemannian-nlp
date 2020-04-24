@@ -2,7 +2,6 @@ import argparse
 from riemann.config.config_loader import initialize_config
 import wandb
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
-from riemann.train import train
 from riemann.model import get_model
 from riemann.data.data_loader import get_training_data
 
@@ -26,11 +25,11 @@ def run(args):
     data = get_training_data()
 
     # Generate model
-    model = get_model(data)
+    model = get_model()
     
     # Train
     train_schedule = GraphEmbeddingTrainSchedule(model)
-    train(train_schedule)
+    train_schedule.train()
     
 
 parser.set_defaults(func=run)

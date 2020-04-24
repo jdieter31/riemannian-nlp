@@ -21,7 +21,7 @@ class GraphSamplingConfig(ConfigDict):
     """
     n_rand_neighbors: int = 20
 
-    batch_size: int = 50
+    batch_size: int = 50000
 
     """
     Number of workers to use when running the graph sampling algorithm

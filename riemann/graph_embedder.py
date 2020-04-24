@@ -7,6 +7,9 @@ from .manifold_tensors import ManifoldParameter
 from .config.manifold_config import ManifoldConfig
 from typing import List, Callable
 from .data.batching import DataBatch
+from .config.config_loader import get_config
+from math import ceil
+from tqdm import tqdm
 
 class GraphEmbedder(ABC):
     """
@@ -42,6 +45,27 @@ class GraphEmbedder(ABC):
 
         return []
 
+    def retrieve_nodes(self, total_n_nodes):
+        """
+        Retrieves a matrix of nodes 0 to total_n_nodes on the cpu done in
+        batches as specified in the neighbor sampling config 
+        """
+        sampling_config = get_config().sampling 
+        num_blocks = ceil(total_n_nodes /
+                          sampling_config.manifold_neighbor_block_size)
+        block_size = sampling_config.manifold_neighbor_block_size
+        out_blocks = []
+
+        for i in tqdm(range(num_blocks), desc=f"Embed {total_n_nodes} Nodes",
+                      dynamic_ncols=True):
+            start_index = i * block_size
+            end_index = min((i + 1) * block_size, total_n_nodes)
+            out_blocks.append(self.embed_nodes(torch.arange(start_index,
+                                                            end_index,
+                                                            dtype=torch.long)).cpu())
+        out = torch.cat(out_blocks)
+        return out
+
 class ManifoldEmbedding(Embedding, GraphEmbedder):
 
     def __init__(
@@ -71,6 +95,7 @@ class ManifoldEmbedding(Embedding, GraphEmbedder):
     def get_manifold(self) -> RiemannianManifold:
         return self.manifold
 
-    def embed_nodes(self, node_ids):
+    def embed_nodes(self, node_ids: torch.Tensor):
+        node_ids = node_ids.to(self.weight.device)
         return self(node_ids)
 
