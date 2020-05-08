@@ -10,13 +10,13 @@ class SamplingConfig(ConfigDict):
     train_sampling_config: GraphSamplingConfig = GraphSamplingConfig(
         n_graph_neighbors=20,
         n_rand_neighbors=20,
-        n_manifold_neighbors=40,
+        n_manifold_neighbors=0,
         batch_size=20000
     )
     eval_sampling_config: GraphSamplingConfig = GraphSamplingConfig(
         n_graph_neighbors=500,
         n_rand_neighbors=500,
-        n_manifold_neighbors=40,
+        n_manifold_neighbors=0,
         batch_size=3000
     )
 

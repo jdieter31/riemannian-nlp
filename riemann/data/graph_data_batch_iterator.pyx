@@ -74,11 +74,15 @@ cdef class GraphDataBatchIterator:
                 negatives during evaluation)
         """
 
-        self.n_graph_neighbors = graph_sampling_config.n_graph_neighbors
-        self.n_manifold_neighbors = graph_sampling_config.n_manifold_neighbors
-        self.n_rand_neighbors = graph_sampling_config.n_rand_neighbors
         self.N = neighbor_data["N"]
-        self.batch_size = graph_sampling_config.batch_size
+        self.n_graph_neighbors = min(self.N - 1,
+                                     graph_sampling_config.n_graph_neighbors)
+        self.n_manifold_neighbors = min(self.N - 1 - self.n_graph_neighbors,
+                                        graph_sampling_config.n_manifold_neighbors)
+        self.n_rand_neighbors = min(self.N - 1 - self.n_graph_neighbors -
+                                    self.n_manifold_neighbors,
+                                    graph_sampling_config.n_rand_neighbors)
+        self.batch_size = min(graph_sampling_config.batch_size, self.N)
         self.queue = queue.Queue(maxsize=graph_sampling_config.num_workers)
         self.num_workers = graph_sampling_config.num_workers
         self.data_fraction = 1
@@ -286,7 +290,6 @@ cdef class GraphDataBatchIterator:
                 while k < neighbors_length:
                     excluded_samples.insert(self.train_graph_neighbors[train_neighbors_index + k])
                     k = k + 1
-
             k = 1
             size_dif = neighbors_length - self.n_graph_neighbors
             while k < 1+total_graph_samples:

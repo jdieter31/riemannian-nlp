@@ -8,7 +8,7 @@ class ManifoldInitializationConfig(ConfigDict):
     """
 
     default_init_func: str = "uniform_" 
-    default_params: List = [-0.001, 0.001]
+    default_params: List[float] = [-0.001, 0.001]
     manifold_init_funcs: Dict[str, str] = {}
     manifold_params: Dict[str, List] = {}
 
