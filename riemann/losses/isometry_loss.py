@@ -1,7 +1,14 @@
+import torch
+from ..manifolds import RiemannianManifold
+from ..jacobian import compute_jacobian
+from torch.nn.functional import relu
+
 # Add to ensure there are no anomalous zero eigenvalues
 EPSILON = 0.0001
 
-def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold, out_manifold: RiemannianManifold, out_dimension: int, isometric=False, random_samples=0, random_init = None):
+def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
+                  RiemannianManifold, out_manifold: RiemannianManifold,
+                  out_dimension: int, isometric=True):
     """
     See write up for details on this loss functions -- encourages model to be
     isometric or to be conformal
@@ -20,21 +27,19 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold: Riemannian
             True, conformal if False. Riemannian distance on the manifold of PD
             matrices is used to optimized the metrics if isometric and cosine
             distance between the flattened metric matrices is used if conformal
-        random_samples (int): Number of randomly generated samples to use in
-            addition to provided input_embeddings
-        random_init (dict): Parameters to use for random generation of samples
-        - use format described in manifold_initialization
 
     Returns:
         pytorch scalar: computed loss
     """
+
+    """
     input_embeddings = model(input_embeddings)
+
     if random_samples > 0:
         random_samples = torch.empty(random_samples, input_embeddings.size()[1], dtype=input_embeddings.dtype, device=input_embeddings.device)
         initialize_manifold_tensor(random_samples, in_manifold, random_init)
         input_embeddings = torch.cat([input_embeddings, random_samples])
-
-    model = model.embedding_model
+    """
     jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
@@ -66,16 +71,9 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold: Riemannian
         in_metric_reduced = in_metric_reduced / in_metric_reduced.norm(dim=(-2, -1), keepdim=True)
         pullback_metric = pullback_metric / pullback_metric.norm(dim=(-2, -1), keepdim=True)
 
-    # if isometric:
     rd = riemannian_divergence(in_metric_reduced, pullback_metric)
     rd_scaled = torch.sqrt(rd)
-    # rd_scaled = rd
     loss = rd_scaled.mean()
-
-    '''
-    else:
-        loss = -torch.mean(cosine_similarity(pullback_flattened, in_metric_flattened, -1))
-    '''
 
     return loss
 

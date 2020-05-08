@@ -5,6 +5,7 @@ import torch.nn as nn
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
 import torch
+import wandb
 
 class GradNormLossProcessor(BatchTask):
     """
@@ -30,8 +31,9 @@ class GradNormLossProcessor(BatchTask):
         self.optimizer = optimizer
         self.grad_norm_params = grad_norm_params
         self.gradient_weights = [torch.tensor(torch.FloatTensor([1]),
-                                              requires_grad=True) for _ in
-                                 self.losses]
+                                              requires_grad=True,
+                                              device=self.grad_norm_params[0].device
+                                             ) for _ in self.losses]
 
         learning_config = get_config().learning
         self.grad_norm_optimizer = Adam(self.gradient_weights,
@@ -62,20 +64,36 @@ class GradNormLossProcessor(BatchTask):
         losses = []
         total_loss = 0
 
+        loss_num = 0
         for loss_func, weight in zip(self.losses, self.gradient_weights):
             # Compute all losses and gradient norms
-            loss = weight * loss_func(batch)
+            loss = loss_func(batch)
+            wandb.log({f"train/loss{loss_num}": float(loss.cpu().detach().numpy())},
+                    step=self.iterations)
+
+            wandb.log({f"train/g_weight{loss_num}": float(weight.cpu().detach().numpy())},
+                    step=self.iterations)
+            loss = weight * loss
             if save_initial:
                 self.initial_losses.append(loss.detach())
             losses.append(loss)
             g_norms.append(self.compute_grad_norms(loss))
-            total_loss += loss_val / len(self.losses)
+            wandb.log({f"train/g_norm{loss_num}": float(g_norms[-1].cpu().detach().numpy())},
+                    step=self.iterations)
+            total_loss += loss / len(self.losses)
+            loss_num += 1
 
         if save_initial:
-            self.initial_losses = torch.concat(self.initial_losses)
+            self.initial_losses = torch.stack(self.initial_losses)
 
-        g_norms = torch.concat(g_norms)
-        losses = torch.concat(losses)
+        
+        wandb.log({f"train/loss_total": float(total_loss.cpu().detach().numpy())},
+                step=self.iterations)
+        self.optimizer.zero_grad()
+        total_loss.backward(retain_graph=True)
+
+        g_norms = torch.stack(g_norms)
+        losses = torch.stack(losses)
 
         # Compute mathematical quantities from GradNorm paper
         g_norm_avg = g_norms.mean()
@@ -94,14 +112,13 @@ class GradNormLossProcessor(BatchTask):
         self.grad_norm_optimizer.step()
 
         # Main optimization step
-        self.optimizer.zero_grad()
-        total_loss.backward()
         self.optimizer.step()
 
         # Renormalize loss weights
         with torch.no_grad():
-            self.gradient_weights /= sum(self.gradient_weights) \
-                / len(self.gradient_weights)
+            for grad_weight in self.gradient_weights:
+                grad_weight /= sum(self.gradient_weights) / \
+                    len(self.gradient_weights)
 
         self.iterations += 1
 
@@ -118,7 +135,7 @@ class GradNormLossProcessor(BatchTask):
             total_norm += norm ** 2
         
         total_norm = torch.sqrt(total_norm)
-        return total_norm.detach()
+        return total_norm
 
 
                                                                                     

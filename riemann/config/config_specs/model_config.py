@@ -21,18 +21,12 @@ class ModelConfig(ConfigDict):
     path: str = get_latest_model()
     model_type: str = "featurized_model_manifold_network"
     intermediate_manifolds: List[ManifoldConfig] = [ManifoldConfig()]        
-    intermediate_manifold_gen_products: bool = None
-    intermediate_dims: List[int] = [2700, 900]
+    intermediate_dims: List[int] = [3]
     sparse: bool = True
     double_precision: bool = False
     manifold_initialization: ManifoldInitializationConfig = \
             ManifoldInitializationConfig()
-    nonlinearity: bool = None
+    nonlinearity: str = "elu"
     num_poles: int = 1
     tries: int = 10
     num_layers: int = 2
-
-    featurizer_name: str = "conceptnet"
-    cn_vector_frame_file: str = "data/glove_w2v_merge.h5"
-    input_manifold: str = "Euclidean"
-

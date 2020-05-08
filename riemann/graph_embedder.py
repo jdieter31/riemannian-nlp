@@ -76,7 +76,7 @@ class ManifoldEmbedding(Embedding, GraphEmbedder):
             padding_idx=None,
             max_norm=None,
             norm_type=2.0,
-            scale_grad_by_freq=False,
+        scale_grad_by_freq=False,
             sparse=False,
             _weight=None,
             manifold_initialization=None):

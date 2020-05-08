@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import torch
 from ..manifolds import RiemannianManifold
-from torch.typing import 
+from typing import List, Optional
 
 class TextFeaturizer(ABC):
     """

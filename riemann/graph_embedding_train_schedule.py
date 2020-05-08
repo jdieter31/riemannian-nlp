@@ -11,7 +11,9 @@ from .losses.single_loss_processor import SingleLossProcessor
 from .losses.graph_manifold_margin_loss import graph_manifold_margin_loss
 from .optimizer_gen import get_optimizer
 from .evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
+from .manifold_tensors import ManifoldParameter
 import wandb
+import numpy as np
 
 from tqdm import tqdm
 import torch
@@ -46,13 +48,18 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
                 sampling_config.train_sampling_config)
             yield data_iterator, (self._get_tasks_for_batch() for _ in
                                   range(len(data_iterator)))
+        print(self.model.retrieve_nodes(self.training_data.n_nodes()))
+        print(self.model.featurizer(self.training_data.object_ids, \
+                                    np.array([0,1,2,3,4,5,6,7,8,9,10,11,12])))
 
     def _get_loss_processor(self):
         losses = self._get_losses()
         if len(losses) == 1:
             return SingleLossProcessor(losses[0], self.optimizer)
         else:
-            return GradNormLossProcessor(losses, self.optimizer)
+            params = [param for param in self.model.model.parameters() if not
+                      isinstance(param, ManifoldParameter)]
+            return GradNormLossProcessor(losses, self.optimizer, params)
 
     def _get_losses(self) -> List[Callable[[DataBatch], torch.Tensor]]:
         general_config = get_config().general
@@ -62,7 +69,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
         margin_loss = lambda data_batch: \
                 graph_manifold_margin_loss(self.model, data_batch, manifold,
                                            loss_config.margin) 
-        return [margin_loss]
+        return [margin_loss] + self.model.get_losses()
 
     def _add_cyclic_evaluations(self):
         eval_config = get_config().eval

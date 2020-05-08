@@ -4,20 +4,21 @@ from .text_featurizer import TextFeaturizer
 from ..graph_embedder import GraphEmbedder 
 from typing import List
 import torch
+import numpy as np
 
-class GraphObjectIDFeaturizer(ABC, GraphEmbedder):
+class GraphObjectIDEmbedder(GraphEmbedder):
     """
     Abstract class for a GraphEmbedder that makes embeddings based on object
-    IDs from the graph dataset rather than just raw node data
+    IDs from the graph dataset rather than just raw node data.
     """
 
-    @abstract_method
+    @abstractmethod
     def __init__(self, graph_dataset: GraphDataset):
         self.graph_dataset = graph_dataset
 
-    @abstract_method
+    @abstractmethod
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
-                         numpy.ndarray) \
+                         np.ndarray) \
         -> torch.Tensor:
         """
         Embeds graph data based on nodes and object ids
