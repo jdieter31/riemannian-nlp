@@ -63,7 +63,10 @@ class PoincareBall(RiemannianManifold):
     def __init__(self, c=1.0):
         super().__init__()
         self.c = c
-        
+
+    def __str__(self):
+        return "H"
+
     def proj(self, x, indices=None):
         if indices is not None:
             return x.index_copy(0, indices, self.proj_(x[indices]))

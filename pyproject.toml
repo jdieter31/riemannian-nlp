@@ -39,11 +39,18 @@ wandb = "^0.8.31"
 wordfreq = "^2.2.2"
 ordered_set = "^3.1.1"
 lark-parser = "^0.8.5"
+hyperbolic = "^1.1"
+matplotlib = "^3.2.1"
+jupyter = {extras = ["notebook"], version = "^1.0.0"}
+pyrr = "^0.10.3"
+svgwrite = "^1.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "~3.0"
 pytest-cov = "~2.4"
 mypy = "~0.720.0"
+drawSvg = "^1.5.3"
+jupyterthemes = "^0.20.0"
 
 [build-system]
 requires = ["poetry>=0.12"]

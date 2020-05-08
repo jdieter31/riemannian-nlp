@@ -50,6 +50,27 @@ class ProductManifold(RiemannianManifold):
             self.slices.append((slice_start, dimension))
             slice_start = slice_end
 
+    def __str__(self):
+        return "x".join(f"{submanifold}{dim}"
+                        for submanifold, dim in zip(self.submanifolds, self.submanifold_dims))
+
+    @classmethod
+    def from_string(cls, spec: str):
+        submanifolds = []
+        for subspec in spec.split("x"):
+            submanifold = {}
+            if subspec[0] == "E":
+                submanifold["name"] = "EuclideanManifold"
+            elif subspec[0] == "H":
+                submanifold["name"] = "PoincareBall"
+            elif subspec[0] == "S":
+                submanifold["name"] = "SphericalManifold"
+            else:
+                raise NotImplementedError()
+            submanifold["dimension"] = int(subspec[1:])
+            submanifolds.append(submanifold)
+        return cls.from_params({"submanifolds": submanifolds})
+
     def get_submanifold_value(self, x: torch.Tensor, submanifold: RiemannianManifold):
         """
         Gets the value of x in the repsective submanifold

@@ -1,3 +1,6 @@
+"""
+This module contains utility functions for use with Spell (https://spell.run).
+"""
 # Spell is only imported in the Spell python environment. We use it to log metrics to Spell.
 import os
 import logging

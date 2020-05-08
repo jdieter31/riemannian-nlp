@@ -10,6 +10,9 @@ class EuclideanManifold(RiemannianManifold):
     def from_params(cls, params):
         return EuclideanManifold()
 
+    def __str__(self):
+        return "E"
+
     def retr(self, x, u, indices=None):
         if indices is not None:
             return x.index_add(0, indices, u)

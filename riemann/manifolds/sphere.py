@@ -30,6 +30,9 @@ class SphericalManifold(RiemannianManifold):
     def from_params(cls, params):
         return SphericalManifold()
 
+    def __str__(self):
+        return "S"
+
     def proj(self, x, indices=None):
         if indices is not None:
             norm = x[indices].norm(dim=-1, keepdim=True)
