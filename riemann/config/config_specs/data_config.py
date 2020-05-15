@@ -10,9 +10,9 @@ class DataConfig(ConfigDict):
     """
     Configuration for data component
     """
-    dataset_name: str = "tree"
+    dataset_name: str = "simple"
     path: str = os.path.join(root_path, 
-            "data/tree.csv")
+            "data/simple.csv")
     graph_data_type: str = "edge"
     graph_data_format: str = "hdf5"
     symmetrize: bool = False

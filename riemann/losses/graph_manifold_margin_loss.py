@@ -6,7 +6,7 @@ from ..manifolds import RiemannianManifold
 
 def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                manifold: RiemannianManifold, margin=0.01,
-                               scale_function=lambda x: x):
+                               scale_function=lambda x: torch.log(x)):
     """
     See write up for details on this loss function -- encourages embeddings to
     preserve graph topology
@@ -65,8 +65,7 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                      diff_matrix)
     masked_diff_matrix = masked_diff_matrix.triu()
     masked_diff_matrix = relu(masked_diff_matrix)
-    masked_diff_matrix = masked_diff_matrix.sum(-1)
-    loss = masked_diff_matrix.sum(-1).mean()
+    loss = masked_diff_matrix.mean()
     return loss
 
 

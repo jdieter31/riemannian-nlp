@@ -75,8 +75,10 @@ class SphericalManifold(RiemannianManifold):
 
         norm_u = u.norm(dim=-1, keepdim=True)
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
+        exp = self.proj(exp)
         retr = self.proj(x + u)
-        cond = norm_u > EPSILON
+        cond = (norm_u > EPSILON) & \
+               ((x + u).norm(dim=-1, keepdim=True) > EPSILON)
         out = torch.where(cond, exp, retr)
         return out
 
@@ -90,7 +92,8 @@ class SphericalManifold(RiemannianManifold):
 
     def dist(self, x, y, keepdim=False):
         inner = (x * y).sum(-1, keepdim=keepdim)
-        inner = inner.clamp(-.9999, .9999)
+        inner = inner.clamp(-1, 1)
+        inner = inner * (1 - EPSILON) / 1
         return acos(inner)
 
     def rgrad(self, x, dx):

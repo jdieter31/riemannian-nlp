@@ -85,12 +85,14 @@ def manifold_scatter(manifold: RiemannianManifold, x: np.ndarray,
         }
 
     if isinstance(manifold, EuclideanManifold):
-        assert d == 2
-        points = np.hstack((x, np.zeros((n, 1)))).reshape((n, 1, 3))
-        surface = svg3d.Mesh(3.0 * parametric_surface(8, 8, plane), face_shader)
-        points = svg3d.Mesh(3.0 * points, point_shader, annotator=point_annotator)
-        scene = svg3d.Scene([svg3d.Group([surface, points])])
-        camera = svg3d.Camera.create(eye=(10, 0, 40))
+        if d == 2:
+            points = np.hstack((x, np.zeros((n, 1)))).reshape((n, 1, 3))
+            surface = svg3d.Mesh(3.0 * parametric_surface(8, 8, plane), face_shader)
+            points = svg3d.Mesh(3.0 * points, point_shader, annotator=point_annotator)
+            scene = svg3d.Scene([svg3d.Group([surface, points])])
+            camera = svg3d.Camera.create(eye=(10, 0, 40))
+        else:
+
 
     elif isinstance(manifold, ProductManifold):
         spec = str(manifold)

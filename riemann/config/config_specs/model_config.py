@@ -20,8 +20,9 @@ class ModelConfig(ConfigDict):
     """
     path: str = get_latest_model()
     model_type: str = "featurized_model_manifold_network"
-    intermediate_manifolds: List[ManifoldConfig] = [ManifoldConfig()]        
-    intermediate_dims: List[int] = [3]
+    intermediate_manifolds: List[ManifoldConfig] = [ManifoldConfig(),
+                                                    ManifoldConfig()]
+    intermediate_dims: List[int] = [50, 10]
     sparse: bool = True
     double_precision: bool = False
     manifold_initialization: ManifoldInitializationConfig = \
@@ -30,3 +31,4 @@ class ModelConfig(ConfigDict):
     num_poles: int = 1
     tries: int = 10
     num_layers: int = 2
+    train_isometry: bool = True

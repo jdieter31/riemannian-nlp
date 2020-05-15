@@ -5,6 +5,7 @@ from ..manifold_tensors import ManifoldParameter
 from ..embed_save import Savable
 from torch.nn.init import orthogonal_
 import math
+from math import sqrt
 
 class ManifoldLayer(nn.Module):
     def __init__(
@@ -17,7 +18,7 @@ class ManifoldLayer(nn.Module):
             num_poles=3,
             log_base_init: torch.Tensor=None,
             exp_base_init: torch.Tensor=None,
-            ortho_init=True,
+            ortho_init=False,
             ):
         super(ManifoldLayer, self).__init__()
         self.in_manifold = in_manifold
@@ -37,6 +38,9 @@ class ManifoldLayer(nn.Module):
         self.linear_layer = nn.Linear(in_dimension * num_poles, out_dimension, bias=False)
         if ortho_init:
             orthogonal_(self.linear_layer.weight)
+            with torch.no_grad():
+                self.linear_layer.weight /= sqrt(in_dimension)
+
         self.non_linearity = None
         self.non_linearity_name = non_linearity
         if non_linearity is not None:

@@ -48,11 +48,9 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         self.out_manifold = out_manifold
         self.isometry_loss = isometry_loss
         self.out_dimension = out_dimension
-        """
         self.scale = torch.tensor(torch.FloatTensor([0]), requires_grad=True,
                                   device=next(self.model.parameters()).device)
         register_parameter_group([self.scale])
-        """
 
 
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
@@ -69,9 +67,29 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         
         in_values = self.featurizer(object_ids, node_ids)
         in_values = in_values.to(next(self.model.parameters()).device)
-        # in_values = in_values * torch.exp(self.scale)
         out_values = self.model(in_values)
         return out_values
+
+    def get_featurizer_graph_embedder(self) -> GraphObjectIDEmbedder:
+        """
+        Produces a embedder object that 
+        """
+        outer_class = self
+        
+        class FeaturizedGraphEmbedder(GraphObjectIDEmbedder):
+            def __init__(self):
+                super(FeaturizedGraphEmbedder,
+                      self).__init__(outer_class.graph_dataset)
+
+            def embed_graph_data(self, node_ids: torch.Tensor, object_ids: \
+                                 np.ndarray) -> torch.Tensor:
+
+                in_values = outer_class.featurizer(object_ids, node_ids)
+                in_values = in_values.to(next(outer_class.model.parameters()).device)
+                return in_values
+
+        return FeaturizedGraphEmbedder()
+
 
     def get_losses(self):
         if self.isometry_loss:
@@ -90,7 +108,8 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                                            initialization)
                 return isometry_loss(self.model, random_samples,
                                      self.in_manifold, self.out_manifold,
-                                     self.out_dimension, isometric)
+                                     self.out_dimension, isometric,
+                                     torch.exp(self.scale))
                 
             return [batch_isometry_loss]
         else:

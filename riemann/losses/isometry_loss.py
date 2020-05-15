@@ -8,7 +8,7 @@ EPSILON = 0.0001
 
 def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
                   RiemannianManifold, out_manifold: RiemannianManifold,
-                  out_dimension: int, isometric=True):
+                  out_dimension: int, isometric=False, scale=None):
     """
     See write up for details on this loss functions -- encourages model to be
     isometric or to be conformal
@@ -66,14 +66,15 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
     in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
-    
-    if not isometric:
-        in_metric_reduced = in_metric_reduced / in_metric_reduced.norm(dim=(-2, -1), keepdim=True)
-        pullback_metric = pullback_metric / pullback_metric.norm(dim=(-2, -1), keepdim=True)
 
-    rd = riemannian_divergence(in_metric_reduced, pullback_metric)
-    rd_scaled = torch.sqrt(rd)
-    loss = rd_scaled.mean()
+    if scale != None:
+        pullback_metric = scale * pullback_metric
+
+    if isometric:
+        rd = riemannian_divergence( pullback_metric, in_metric_reduced)
+    else:
+        rd = conformal_divergence(pullback_metric, in_metric_reduced)
+    loss = rd.mean()
 
     return loss
 
@@ -85,5 +86,22 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
     eigenvalues = relu(eigenvalues)
-    log_eig = torch.log(eigenvalues + EPSILON)
+    log_eig = torch.log(eigenvalues)
+    # Filter potential nans
+    log_eig[log_eig != log_eig] = 0
     return (log_eig * log_eig).sum(dim=-1)
+
+def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
+    matrix_a_inv = torch.inverse(matrix_a)
+    ainvb = torch.bmm(matrix_a_inv, matrix_b)
+    eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
+    eigenvalues = relu(eigenvalues)
+    log_eig = torch.log(eigenvalues)
+    iso_loss = (log_eig * log_eig).sum(dim=-1)
+
+    log_det_diff = torch.logdet(matrix_a) - torch.logdet(matrix_b)
+
+    last_term = (log_det_diff ** 2) / matrix_a.size(-1)
+
+    return iso_loss - last_term
+

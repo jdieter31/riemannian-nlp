@@ -52,7 +52,8 @@ def get_model() -> GraphEmbedder:
                 featurizer_manifold,
                 featurizer_dim,
                 embed_manifold,
-                general_config.embed_manifold_dim
+                general_config.embed_manifold_dim,
+                model_config.train_isometry
             )
 
     return __model

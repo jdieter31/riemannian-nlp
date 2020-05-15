@@ -8,11 +8,11 @@ class LossConfig(ConfigDict):
     """
     Configuration for loss functions
     """
-    margin: float = 0.01
+    margin: float = 0.3
 
-    random_isometry_samples: int = 50
+    random_isometry_samples: int = 100
     random_isometry_initialization: ManifoldInitializationConfig = \
         ManifoldInitializationConfig(
             default_params=[-1.0, 1.0] 
         )
-    conformal: bool = False
+    conformal: bool = True
