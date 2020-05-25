@@ -48,10 +48,6 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         self.out_manifold = out_manifold
         self.isometry_loss = isometry_loss
         self.out_dimension = out_dimension
-        self.scale = torch.tensor(torch.FloatTensor([0]), requires_grad=True,
-                                  device=next(self.model.parameters()).device)
-        register_parameter_group([self.scale])
-
 
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
                          np.ndarray) \
@@ -109,7 +105,8 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                 return isometry_loss(self.model, random_samples,
                                      self.in_manifold, self.out_manifold,
                                      self.out_dimension, isometric,
-                                     torch.exp(self.scale))
+                                     loss_config.max_distortion
+                                     )
                 
             return [batch_isometry_loss]
         else:

@@ -10,17 +10,18 @@ class DataConfig(ConfigDict):
     """
     Configuration for data component
     """
-    dataset_name: str = "simple"
+    dataset_name: str = "nouns"
     path: str = os.path.join(root_path, 
-            "data/simple.csv")
+            "data/nouns.csv")
     graph_data_type: str = "edge"
     graph_data_format: str = "hdf5"
     symmetrize: bool = False
     num_workers: int = 5
-    delimiter: str = "\t"
+    delimiter: str = ","
 
-    make_eval_split: bool = False
+    make_eval_split: bool = True
     split_seed: int = 14534432
-    split_size: float = 0.25
+    split_size: float = 0.2
+    split_by_edges: bool = False
 
-    featurizer: str = "random"
+    featurizer: str = "wordnet"

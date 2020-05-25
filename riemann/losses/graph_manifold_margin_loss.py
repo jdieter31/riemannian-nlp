@@ -65,7 +65,11 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                      diff_matrix)
     masked_diff_matrix = masked_diff_matrix.triu()
     masked_diff_matrix = relu(masked_diff_matrix)
-    loss = masked_diff_matrix.mean()
+    # Filter out nans - inevitable if distances are zero anywhere and log scale
+    # is used
+    masked_diff_matrix[masked_diff_matrix != masked_diff_matrix] = 0
+    masked_diff_matrix[masked_diff_matrix == float('inf')] = 0
+    loss = masked_diff_matrix.sum(dim=-1).sum(dim=-1).mean()
     return loss
 
 

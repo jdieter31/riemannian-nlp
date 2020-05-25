@@ -10,9 +10,10 @@ class LossConfig(ConfigDict):
     """
     margin: float = 0.3
 
-    random_isometry_samples: int = 100
+    random_isometry_samples: int = 30
     random_isometry_initialization: ManifoldInitializationConfig = \
         ManifoldInitializationConfig(
             default_params=[-1.0, 1.0] 
         )
     conformal: bool = True
+    max_distortion: float = 4

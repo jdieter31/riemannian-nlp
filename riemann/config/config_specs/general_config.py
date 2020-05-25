@@ -7,11 +7,11 @@ class GeneralConfig(ConfigDict):
     """
     General Configuration
     """
-    n_epochs: int = 4000
+    n_epochs: int = 40
     eval_every: int = 5
     gpu: int = 0
     embed_manifold: ManifoldConfig = ManifoldConfig(
         name="SphericalManifold"
     )
    
-    embed_manifold_dim: int = 3
+    embed_manifold_dim: int = 400

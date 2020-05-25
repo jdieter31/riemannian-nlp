@@ -11,6 +11,15 @@ from ..graph_embedder import GraphEmbedder
 from ..manifold_nns import ManifoldNNS
 from ..config.config_loader import get_config
 from math import floor
+from itertools import combinations, chain
+from scipy.special import comb
+
+
+def comb_index(n, k):
+    count = comb(n, k, exact=True)
+    index = np.fromiter(chain.from_iterable(combinations(range(n), k)), 
+                        int, count=count*k)
+    return index.reshape(-1, k)
 
 class GraphDataset:
     """
@@ -117,6 +126,36 @@ class GraphDataset:
         """
         return len(self.object_ids)
 
+    def collapse_nodes(self, node_ids):
+        all_new_edges = []
+        for node_id in tqdm(node_ids, desc="Collapsing Nodes",
+                            dynamic_ncols=True):
+            in_edges = self.graph.get_in_edges(node_id, [self.weight_property])
+            out_edges = self.graph.get_out_edges(node_id, [self.weight_property])
+            neighbors = np.concatenate([out_edges[:,1:3], in_edges[:,0:3:2]])
+            if neighbors.shape[0] > 1:
+                neighbor_combos = \
+                    neighbors[comb_index(neighbors.shape[0], 2)]
+                neighbor_combos = \
+                    neighbor_combos.reshape(neighbor_combos.shape[0], 4)
+                new_edges = np.zeros((neighbor_combos.shape[0], 3))
+                new_edges[:,:2] += neighbor_combos[:,0:3:2]
+                new_edges[:,2] += (neighbor_combos[:,1] + \
+                                   neighbor_combos[:,3])/4
+                all_new_edges.append(new_edges)
+
+        self.graph.add_edge_list(np.concatenate(all_new_edges), eprops=[self.weight_property])
+
+        self.object_ids = np.delete(self.object_ids, np.array(node_ids))
+        self.graph.remove_vertex(node_ids)
+
+
+        edges_weights = self.graph.get_edges(eprops=[self.weight_property])
+        edges = edges_weights[:,0:2]
+        weights = edges_weights[:,2]
+        self.edges = edges
+        self.weights = weights
+
     def get_neighbor_iterator(self, 
                               graph_sampling_config: GraphSamplingConfig,
                               data_fraction: float=1,
@@ -160,15 +199,41 @@ class GraphDataset:
 
         data_config = get_config().data
         np.random.seed(data_config.split_seed)
-        shuffle_order = np.arange(edges.shape[0])
-        np.random.shuffle(shuffle_order)
-        num_eval = floor(edges.shape[0] * data_config.split_size)
-        eval_indices = shuffle_order[:num_eval]
-        train_indices = shuffle_order[num_eval:]
-        train_edges = edges[train_indices]
-        train_weights = weights[train_indices]
-        eval_edges = edges[eval_indices]
-        eval_weights = weights[eval_indices]
+        if data_config.split_by_edges:
+
+            shuffle_order = np.arange(edges.shape[0])
+            np.random.shuffle(shuffle_order)
+            num_eval = floor(edges.shape[0] * data_config.split_size)
+            eval_indices = shuffle_order[:num_eval]
+            train_indices = shuffle_order[num_eval:]
+            train_edges = edges[train_indices]
+            train_weights = weights[train_indices]
+            eval_edges = edges[eval_indices]
+            eval_weights = weights[eval_indices]
+        else:
+            shuffle_order = np.arange(len(object_ids))
+            np.random.shuffle(shuffle_order)
+            num_eval = floor(len(object_ids) * data_config.split_size)
+            eval_indices = shuffle_order[:num_eval]
+            train_indices = shuffle_order[num_eval:]
+
+            train_edges = []
+            eval_edges = []
+            train_weights = []
+            eval_weights = []
+            for edge, weight in zip(edges, weights):
+                if edge[0] in eval_indices or edge[1] in eval_indices:
+                    eval_edges.append(edge)
+                    eval_weights.append(weight)
+                else:
+                    train_edges.append(edge)
+                    train_weights.append(weight)
+
+            train_edges = np.array(train_edges)
+            eval_edges = np.array(eval_edges)
+            train_weights = np.array(train_weights)
+            eval_weights = np.array(eval_weights)
+
 
         train_data = GraphDataset(f"{name}_train_{data_config.split_seed}",
                                   train_edges, object_ids, train_weights)

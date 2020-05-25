@@ -114,6 +114,11 @@ class GradNormLossProcessor(BatchTask):
         # target value
         ideal_grad_norms = (g_norm_avg * (inv_rates ** alpha)).detach()
         self.gradient_weights = ideal_grad_norms / g_norms
+        self.gradient_weights = self.gradient_weights.size(0) * \
+            self.gradient_weights * \
+            torch.tensor(learning_config.loss_priority,
+                         requires_grad=False,
+                         device=self.gradient_weights.device)
         for i in range(len(self.losses)):
             wandb.log({f"train/g_weight{i}":
                     float(self.gradient_weights[i].cpu().detach().numpy())},
