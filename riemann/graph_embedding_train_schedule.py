@@ -1,4 +1,4 @@
-from typing import List, Callable
+from typing import List, Callable, cast, Sized
 
 import matplotlib.pyplot as plt
 import torch
@@ -48,8 +48,8 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
             # DataBatch
             data_iterator = self.training_data.get_neighbor_iterator(
                 sampling_config.train_sampling_config)
-            yield data_iterator, (self._get_tasks_for_batch() for _ in
-                                  range(len(data_iterator)))
+            n_tasks = len(cast(Sized, data_iterator))
+            yield data_iterator, (self._get_tasks_for_batch() for _ in range(n_tasks))
 
     def _get_loss_processor(self):
         if self._loss_processor is None:
@@ -57,8 +57,9 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
             if len(losses) == 1:
                 self._loss_processor = SingleLossProcessor(losses[0], self.optimizer)
             else:
-                params = [param for param in self.model.model.parameters() if not
-                isinstance(param, ManifoldParameter)]
+                assert isinstance(self.model, GraphObjectIDFeaturizerEmbedder)
+                params = [param for param in self.model.model.parameters()
+                          if not isinstance(param, ManifoldParameter)]
                 self._loss_processor = GradNormLossProcessor(losses, self.optimizer, params)
 
         return self._loss_processor
@@ -90,7 +91,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
         if eval_config.make_visualization and isinstance(self.model,
                                                          GraphObjectIDFeaturizerEmbedder):
             def visualize_task():
-                fig = plot(self.model)
+                fig = plot(cast(GraphObjectIDFeaturizerEmbedder, self.model))
                 wandb.log({"visualization": wandb.Image(fig)})
                 plt.close(fig)
 

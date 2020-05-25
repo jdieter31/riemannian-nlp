@@ -8,7 +8,7 @@ import json
 import os
 import pkgutil
 import sys
-from typing import Dict
+from typing import Dict, Any
 
 from .config import ConfigDict, ConfigDictParser
 
@@ -86,16 +86,16 @@ def get_config():
     return global_config
 
 
-def initialize_config(path: str = None, load_config: bool = False, config_updates: str = "",
+def initialize_config(path: str = None, load_config: bool = False,
+                      config_updates: Dict[str, Any] = None,
                       save_config: bool = False, save_directory: str = None):
     """
     Initializes global config - run before referencing global_config
     Args:
         path (str): Path to config file - should be json
         load_config (Bool): Should config be loaded or generated from default values
-        config_updates (str): Updates configuration dictionary with these
-            updates according to grammar of riemann.config.ConfigDictParser -
-            useful for command line specification
+        config_updates (Dict): Updates configuration dictionary with these
+            updates. See `riemann.config.ConfigDictParser` for command line specification
         save_config (str): Whether or not the config should be saved somewhere
         save_directory (str): Different directory to save config file (same as path if None)
     """
@@ -108,7 +108,7 @@ def initialize_config(path: str = None, load_config: bool = False, config_update
             global_config.update(**json.load(json_file))
 
     if config_updates is not None:
-        global_config.update(**ConfigDictParser.parse(config_updates))
+        global_config.update(**config_updates)
 
     if save_config:
         if save_directory is None:

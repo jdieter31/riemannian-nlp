@@ -15,6 +15,7 @@ class GraphObjectIDEmbedder(GraphEmbedder):
 
     @abstractmethod
     def __init__(self, graph_dataset: GraphDataset):
+        super().__init__()
         self.graph_dataset = graph_dataset
 
     @abstractmethod

@@ -1,5 +1,5 @@
 import abc
-from typing import Callable
+from typing import Callable, cast, Sized
 from typing import Iterator, Tuple, List
 
 from tqdm import tqdm
@@ -53,9 +53,10 @@ class TrainSchedule(abc.ABC):
                 than training.
         """
         data_iterator, task_iterator = epoch
+        n_batches = len(cast(Sized, data_iterator))
 
         for batch, tasks in tqdm(zip(data_iterator, task_iterator),
-                                 total=len(data_iterator),
+                                 total=n_batches,
                                  desc=prog_desc, dynamic_ncols=True):
             for task in tasks:
                 task.process_batch(batch)

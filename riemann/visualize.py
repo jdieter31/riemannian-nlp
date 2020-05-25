@@ -18,8 +18,7 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder):
     out_dimension = graph_embedder.out_dimension
 
     assert in_dimension == 2
-    assert out_dimension == 3 or (in_dimension == 2 and \
-                                  isinstance(out_manifold, SphericalManifold))
+    assert out_dimension == 3 or (in_dimension == 2 and isinstance(out_manifold, SphericalManifold))
 
     mpl.style.use('seaborn')
 
@@ -27,8 +26,6 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder):
         graph_embedder.graph_dataset.n_nodes()
     )
     output_tensor = graph_embedder.retrieve_nodes(graph_embedder.graph_dataset.n_nodes())
-
-    objectids = graph_embedder.graph_dataset.object_ids
 
     inputs = inputs_tensor.detach().numpy()
     output = output_tensor.detach().numpy()
@@ -39,20 +36,12 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder):
     np.random.seed(1234324)
     colors = np.random.rand(len(inputs), 3)
     ax.scatter(inputs.T[0], inputs.T[1], c=colors, alpha=1)
-    """
-    for i, (x, y) in enumerate(inputs[:, :2]): 
-        ax.text(x, y, objectids[i])
-    """
 
     for edge in graph_embedder.graph_dataset.edges:
         ax.plot(inputs[edge][:, 0], inputs[edge][:, 1], 'm--', alpha=0.3)
 
     ax = fig.add_subplot(122, projection='3d')
     ax.scatter(output.T[0], output.T[1], output.T[2], c=colors, alpha=1)
-    """
-    for i, (x, y, z) in enumerate(output):
-        ax.text(x, y, z, objectids[i], None)
-    """
 
     for edge in graph_embedder.graph_dataset.edges:
         ax.plot(output[edge][:, 0], output[edge][:, 1],

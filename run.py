@@ -5,10 +5,13 @@ import argparse
 import json
 import sys
 
+from riemann.config.config import ConfigDictParser
 from riemann.config.config_loader import initialize_config, get_config
 import wandb
+
+from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
-from riemann.model import get_model
+from riemann.model import get_model, torch
 from riemann.data.data_loader import get_training_data
 
 
@@ -19,8 +22,7 @@ def train(args):
     # Initialize Config
     initialize_config(args.config_file,
                       load_config=(args.config_file is not None),
-                      config_updates=args.config_updates)
-
+                      config_updates=ConfigDictParser.parse(args.config_updates))
     # This command just preloads the training data.
     get_training_data()
 
@@ -31,6 +33,9 @@ def train(args):
     train_schedule = GraphEmbeddingTrainSchedule(model)
     train_schedule.train()
 
+    # Save the model
+    model.to_file("test.zip")
+
 
 def transform_manifold(args):
     """
@@ -40,8 +45,10 @@ def transform_manifold(args):
     # Initialize Config
     initialize_config(args.config_file,
                       load_config=(args.config_file is not None),
-                      config_updates=args.config_updates)
+                      config_updates=ConfigDictParser.parse(args.config_updates))
     print(json.dumps(get_config().as_json(), indent=2))
+    model = GraphEmbedder.from_file("test.zip")
+    # Run plot with the data
 
 
 # noinspection DuplicatedCode

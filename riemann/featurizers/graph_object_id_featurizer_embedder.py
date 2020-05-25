@@ -1,4 +1,6 @@
+import io
 from typing import Callable
+from zipfile import ZipFile
 
 import numpy as np
 import torch
@@ -21,8 +23,9 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
     appling a torch module.
     """
 
-    def __init__(self, graph_dataset: GraphDataset, featurizer:
-    Callable[[np.ndarray, torch.Tensor], torch.Tensor], model: nn.Module,
+    def __init__(self, graph_dataset: GraphDataset,
+                 featurizer: Callable[[np.ndarray, torch.Tensor], torch.Tensor],
+                 model: nn.Module,
                  in_manifold: RiemannianManifold, in_dimension: int,
                  out_manifold: RiemannianManifold, out_dimension: int,
                  isometry_loss: bool = True):
@@ -105,7 +108,23 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                                      self.out_dimension, isometric,
                                      loss_config.max_distortion
                                      )
-                
+
             return [batch_isometry_loss]
         else:
             return []
+
+    # region: serialization
+    def _to_file(self, zf: ZipFile) -> None:
+        super()._to_file(zf)
+
+        with io.BytesIO() as buf:
+            torch.save(self.model.state_dict(), buf)
+            zf.writestr("model.state", buf.getvalue())
+
+    def _from_file(self, zf: ZipFile) -> None:
+        # Read Torch state from file
+        super()._from_file(zf)
+        with io.BytesIO(zf.read("model.state")) as buf:
+            # make sure we start by placing things on cpu
+            self.model.load_state_dict(torch.load(buf, map_location="cpu"))
+    # endregion
