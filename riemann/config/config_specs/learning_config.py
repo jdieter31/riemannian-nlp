@@ -1,7 +1,9 @@
-from ..config import ConfigDict
 from typing import List
 
+from ..config import ConfigDict
+
 CONFIG_NAME = "learning"
+
 
 class LearningConfig(ConfigDict):
     """
@@ -14,5 +16,3 @@ class LearningConfig(ConfigDict):
     loss_priority: List[float] = [0.3, 0.7]
 
     lr: float = 0.00003
-
-

@@ -1,21 +1,25 @@
 from abc import ABC, abstractmethod
-from torch.nn import Embedding
-import torch
-from .manifold_initialization import initialize_manifold_tensor
-from .manifolds import RiemannianManifold
-from .manifold_tensors import ManifoldParameter
-from .config.manifold_config import ManifoldConfig
-from typing import List, Callable
-from .data.batching import DataBatch
-from .config.config_loader import get_config
 from math import ceil
+from typing import List, Callable
+
+import torch
+from torch.nn import Embedding
 from tqdm import tqdm
+
+from .config.config_loader import get_config
+from .config.manifold_config import ManifoldConfig
+from .data.batching import DataBatch
+from .manifold_initialization import initialize_manifold_tensor
+from .manifold_tensors import ManifoldParameter
+from .manifolds import RiemannianManifold
+
 
 class GraphEmbedder(ABC):
     """
     Abstract class for any type of model that produces embeddings of 
     a graph
     """
+
     @abstractmethod
     def embed_nodes(self, node_ids: torch.Tensor) -> torch.Tensor:
         """
@@ -50,7 +54,7 @@ class GraphEmbedder(ABC):
         Retrieves a matrix of nodes 0 to total_n_nodes on the cpu done in
         batches as specified in the neighbor sampling config 
         """
-        sampling_config = get_config().sampling 
+        sampling_config = get_config().sampling
         num_blocks = ceil(total_n_nodes /
                           sampling_config.manifold_neighbor_block_size)
         block_size = sampling_config.manifold_neighbor_block_size
@@ -66,6 +70,7 @@ class GraphEmbedder(ABC):
         out = torch.cat(out_blocks)
         return out
 
+
 class ManifoldEmbedding(Embedding, GraphEmbedder):
 
     def __init__(
@@ -76,19 +81,22 @@ class ManifoldEmbedding(Embedding, GraphEmbedder):
             padding_idx=None,
             max_norm=None,
             norm_type=2.0,
-        scale_grad_by_freq=False,
+            scale_grad_by_freq=False,
             sparse=False,
             _weight=None,
             manifold_initialization=None):
-        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm, norm_type=norm_type, scale_grad_by_freq=scale_grad_by_freq, sparse=sparse, _weight=_weight)
+        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm,
+                         norm_type=norm_type, scale_grad_by_freq=scale_grad_by_freq, sparse=sparse,
+                         _weight=_weight)
 
         self.manifold = manifold
-        self.params = [manifold, num_embeddings, embedding_dim, padding_idx, max_norm, norm_type, scale_grad_by_freq, sparse]
+        self.params = [manifold, num_embeddings, embedding_dim, padding_idx, max_norm, norm_type,
+                       scale_grad_by_freq, sparse]
         self.weight = ManifoldParameter(self.weight.data, manifold=manifold)
         if manifold_initialization is not None:
             initialize_manifold_tensor(self.weight.data, self.manifold,
                                        manifold_initialization)
-    
+
     def get_embedding_matrix(self):
         return self.weight.data
 
@@ -98,4 +106,3 @@ class ManifoldEmbedding(Embedding, GraphEmbedder):
     def embed_nodes(self, node_ids: torch.Tensor):
         node_ids = node_ids.to(self.weight.device)
         return self(node_ids)
-

@@ -1,10 +1,11 @@
-from sacred import Ingredient
-import random
-import time
-import torch
-import os
 import abc
 import errno
+import os
+import time
+
+import torch
+from sacred import Ingredient
+
 
 class Savable(abc.ABC):
     '''
@@ -23,10 +24,12 @@ class Savable(abc.ABC):
     def from_save_data(cls, data, load_time_params=None):
         '''
         Should return an instance of the object implementing this abstract class using the data returned from get_save_data
-        ''' 
+        '''
         raise NotImplementedError
 
+
 save_ingredient = Ingredient("save")
+
 
 @save_ingredient.config
 def config():
@@ -37,6 +40,7 @@ def config():
     path += f"{i}.tch"
 
     tries = 10
+
 
 @save_ingredient.capture
 def save_model(model: Savable, extra_data, tries, path, _log):
@@ -50,6 +54,7 @@ def save_model(model: Savable, extra_data, tries, path, _log):
     }
     return save_data(path, params, tries, _log)
 
+
 @save_ingredient.capture
 def save_data(path, data, tries, _log):
     '''
@@ -59,7 +64,7 @@ def save_data(path, data, tries, _log):
         if not os.path.exists(os.path.dirname(path)):
             try:
                 os.makedirs(os.path.dirname(path))
-            except OSError as exc: # Guard against race condition
+            except OSError as exc:  # Guard against race condition
                 if exc.errno != errno.EEXIST:
                     raise
         torch.save(data, path)
@@ -90,4 +95,3 @@ def load_model(path):
     model = params['model_class'].from_save_data(params['model'])
     model.to(torch.device('cpu'))
     return model, params['extra_data']
-    

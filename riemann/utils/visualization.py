@@ -4,10 +4,9 @@ This module contains utilities to visualize points on various manifolds.
 from typing import List
 
 import numpy as np
-from . import svg3d
 from numpy import sin, cos
 
-
+from . import svg3d
 # region: common parametric surfaces
 from .svg3d import parametric_surface
 from .. import RiemannianManifold, EuclideanManifold, ProductManifold
@@ -21,8 +20,8 @@ def sphere(u, v):
 
 
 def torus(u, v):
-    x = 3 * (1.5 + cos(v)) * cos(2*u)
-    y = 3 * (1.5 + cos(v)) * sin(2*u)
+    x = 3 * (1.5 + cos(v)) * cos(2 * u)
+    y = 3 * (1.5 + cos(v)) * sin(2 * u)
     z = 3 * sin(v)
     return x, y, z
 
@@ -98,7 +97,7 @@ def manifold_scatter(manifold: RiemannianManifold, x: np.ndarray,
         spec = str(manifold)
         if spec == "S1xS1":
             points = np.array([
-                torus((u + 1) * np.pi/2, (v + 1) * np.pi) for u, v in x]).reshape(n, 1, 3)
+                torus((u + 1) * np.pi / 2, (v + 1) * np.pi) for u, v in x]).reshape(n, 1, 3)
             surface = svg3d.Mesh(3.0 * parametric_surface(44, 44, torus), face_shader)
             points = svg3d.Mesh(3.0 * points, point_shader, annotator=point_annotator)
             scene = svg3d.Scene([svg3d.Group([surface, points])])
@@ -109,7 +108,7 @@ def manifold_scatter(manifold: RiemannianManifold, x: np.ndarray,
             x[:, 1] /= x[:, 1].max()
             # Project them into cylindrical coordinates
             points = np.array([
-                cylinder((u + 1) * np.pi/2, (v + 1) * np.pi) for u, v in x]).reshape(n, 1, 3)
+                cylinder((u + 1) * np.pi / 2, (v + 1) * np.pi) for u, v in x]).reshape(n, 1, 3)
             surface = svg3d.Mesh(3.0 * parametric_surface(24, 24, cylinder), face_shader)
             points = svg3d.Mesh(3.0 * points, point_shader, annotator=point_annotator)
             scene = svg3d.Scene([svg3d.Group([surface, points])])
@@ -121,7 +120,8 @@ def manifold_scatter(manifold: RiemannianManifold, x: np.ndarray,
             x[:, 2] /= x[:, 2].max()
             # Project them into cylindrical coordinates
             points = np.array([
-                cylinder((u + 1) * np.pi/2, (v + 1) * np.pi, r) for u, v, r in x]).reshape(n, 1, 3)
+                cylinder((u + 1) * np.pi / 2, (v + 1) * np.pi, r) for u, v, r in x]).reshape(n, 1,
+                                                                                             3)
             surface = svg3d.Mesh(3.0 * parametric_surface(24, 24, cylinder), face_shader)
             points = svg3d.Mesh(3.0 * points, point_shader, annotator=point_annotator)
             scene = svg3d.Scene([svg3d.Group([surface, points])])
@@ -148,23 +148,30 @@ def test_manifold_scatter():
     # H3 -> (x, y, z) |x, y, z| < 1?
     # SxH2 -> (sin(θ), cos(θ), x, y) |x, y| < 3?
     drawing = manifold_scatter(ProductManifold.from_string("S1xE1"),
-                               np.hstack((2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3)),
-                               sum(([color] * 20 for color in "red blue green black yellow".split()), []),
+                               np.hstack(
+                                   (2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3)),
+                               sum(([color] * 20 for color in
+                                    "red blue green black yellow".split()), []),
                                list(range(5)))
     drawing.saveas("S1xE1.svg")
 
     drawing = manifold_scatter(ProductManifold.from_string("S1xE2"),
-                               np.hstack((2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3, np.random.rand(100, 1) * 3)),
-                               sum(([color] * 20 for color in "red blue green black yellow".split()), []),
+                               np.hstack((
+                                         2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3,
+                                         np.random.rand(100, 1) * 3)),
+                               sum(([color] * 20 for color in
+                                    "red blue green black yellow".split()), []),
                                list(range(5)))
     drawing.saveas("S1xE2.svg")
 
     drawing = manifold_scatter(ProductManifold.from_string("S1xS1"), 2 * np.random.rand(100, 2) - 1,
-                               sum(([color] * 20 for color in "red blue green black yellow".split()), []),
+                               sum(([color] * 20 for color in
+                                    "red blue green black yellow".split()), []),
                                list(range(5)))
     drawing.saveas("S1xS1.svg")
 
     drawing = manifold_scatter(EuclideanManifold(), np.random.randn(100, 2),
-                               sum(([color] * 20 for color in "red blue green black yellow".split()), []),
+                               sum(([color] * 20 for color in
+                                    "red blue green black yellow".split()), []),
                                list(range(5)))
     drawing.saveas("E2.svg")

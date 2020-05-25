@@ -1,19 +1,19 @@
-from ..data.graph_dataset import GraphDataset
-from .text_featurizer import TextFeaturizer
-from ..graph_embedder import GraphEmbedder 
-from typing import List
-from torch import nn
-from ..manifolds import RiemannianManifold
 from typing import Callable
-from .graph_object_id_embedder import GraphObjectIDEmbedder
-from ..losses.isometry_loss import isometry_loss
-from ..data.graph_data_batch import GraphDataBatch
-from ..config.config_loader import get_config
-from ..device_manager import get_device
-from ..manifold_initialization import initialize_manifold_tensor
-from ..optimizer_gen import register_parameter_group
-import torch
+
 import numpy as np
+import torch
+from torch import nn
+
+from .graph_object_id_embedder import GraphObjectIDEmbedder
+from ..config.config_loader import get_config
+from ..data.graph_data_batch import GraphDataBatch
+from ..data.graph_dataset import GraphDataset
+from ..device_manager import get_device
+from ..losses.isometry_loss import isometry_loss
+from ..manifold_initialization import initialize_manifold_tensor
+from ..manifolds import RiemannianManifold
+from ..optimizer_gen import register_parameter_group
+
 
 class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
     """
@@ -22,7 +22,7 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
     """
 
     def __init__(self, graph_dataset: GraphDataset, featurizer:
-                 Callable[[np.ndarray, torch.Tensor], torch.Tensor], model: nn.Module,
+    Callable[[np.ndarray, torch.Tensor], torch.Tensor], model: nn.Module,
                  in_manifold: RiemannianManifold, in_dimension: int,
                  out_manifold: RiemannianManifold, out_dimension: int,
                  isometry_loss: bool = True):
@@ -50,8 +50,8 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         self.out_dimension = out_dimension
 
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
-                         np.ndarray) \
-        -> torch.Tensor:
+    np.ndarray) \
+            -> torch.Tensor:
         """
         Embeds graph data based on nodes and object ids
 
@@ -60,7 +60,7 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
             object_ids (numpy.ndarray): numpy array of str datatype containing
                 the associated object ids to the graph nodes
         """
-        
+
         in_values = self.featurizer(object_ids, node_ids)
         in_values = in_values.to(next(self.model.parameters()).device)
         out_values = self.model(in_values)
@@ -71,21 +71,19 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         Produces a embedder object that 
         """
         outer_class = self
-        
+
         class FeaturizedGraphEmbedder(GraphObjectIDEmbedder):
             def __init__(self):
                 super(FeaturizedGraphEmbedder,
                       self).__init__(outer_class.graph_dataset)
 
             def embed_graph_data(self, node_ids: torch.Tensor, object_ids: \
-                                 np.ndarray) -> torch.Tensor:
-
+                    np.ndarray) -> torch.Tensor:
                 in_values = outer_class.featurizer(object_ids, node_ids)
                 in_values = in_values.to(next(outer_class.model.parameters()).device)
                 return in_values
 
         return FeaturizedGraphEmbedder()
-
 
     def get_losses(self):
         if self.isometry_loss:

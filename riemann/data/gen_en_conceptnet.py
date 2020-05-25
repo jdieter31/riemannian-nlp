@@ -1,9 +1,9 @@
 import csv
+
+from embedding_evaluation.process_benchmarks import process_benchmarks
 from tqdm import tqdm
 
 from riemann.embedding.conceptnet import standardized_uri
-from embedding_evaluation.process_benchmarks import process_benchmarks
-
 
 original_assertions_reduced = "/home/justin/research/conceptnet5/data/assoc/reduced.csv"
 english_assertions = "/home/justin/research/riemannian-nlp/data/en_conceptnet_regularized_filtered.csv"
@@ -16,9 +16,8 @@ if filter_wordsim:
     for _, benchmark in benchmarks.items():
         for (word1, word2), gold_score in tqdm(benchmark.items()):
             uris.append(standardized_uri("en", word1))
-            uris.append(standardized_uri("en", word2)) 
+            uris.append(standardized_uri("en", word2))
 uris = set(uris)
-
 
 out_rows = []
 with open(original_assertions_reduced, "r") as f:
@@ -33,4 +32,3 @@ with open(english_assertions, "w+") as f:
     for row in tqdm(out_rows):
         tab_s = "\t"
         f.write(f"{tab_s.join(row)}\n")
-

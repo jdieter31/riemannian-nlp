@@ -1,8 +1,8 @@
 from ..config import ConfigDict
-import os
 from ..manifold_initialization_config import ManifoldInitializationConfig
 
 CONFIG_NAME = "loss"
+
 
 class LossConfig(ConfigDict):
     """
@@ -13,7 +13,7 @@ class LossConfig(ConfigDict):
     random_isometry_samples: int = 30
     random_isometry_initialization: ManifoldInitializationConfig = \
         ManifoldInitializationConfig(
-            default_params=[-1.0, 1.0] 
+            default_params=[-1.0, 1.0]
         )
     conformal: bool = True
     max_distortion: float = 4

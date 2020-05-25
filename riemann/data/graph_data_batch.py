@@ -1,6 +1,9 @@
-from .batching import DataBatch
-import torch
 from typing import Dict
+
+import torch
+
+from .batching import DataBatch
+
 
 class GraphDataBatch(DataBatch):
     """
@@ -9,7 +12,7 @@ class GraphDataBatch(DataBatch):
 
     def __init__(self, vertices: torch.Tensor, neighbors: torch.Tensor,
                  train_distances: torch.Tensor,
-                 additional_data: Dict=None):
+                 additional_data: Dict = None):
         """
         Params:
             vertices (torch.Tensor long): indices of vertices should be of shape

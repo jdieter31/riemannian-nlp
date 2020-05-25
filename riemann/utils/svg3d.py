@@ -6,11 +6,11 @@
 # Distributed under the MIT License, see bottom of file.
 
 
-import numpy as np
-import pyrr         # type:ignore
-
-from svgwrite import Drawing
 from typing import NamedTuple, Callable, List, Tuple, Optional
+
+import numpy as np
+import pyrr  # type:ignore
+from svgwrite import Drawing
 
 
 class Viewport(NamedTuple):
@@ -43,7 +43,6 @@ class Camera(NamedTuple):
                aspect=1,
                near=1,
                far=200):
-
         return cls(pyrr.matrix44.create_look_at(eye=eye, target=target, up=up),
                    pyrr.matrix44.create_perspective_projection(fovy=fovy, aspect=aspect,
                                                                near=near, far=far))
@@ -183,7 +182,6 @@ class Engine:
                 centroid = face.mean(axis=0)
                 text_group_.add(drawing.text(insert=centroid, **annotation))
 
-
         return [group_, text_group_]
 
     def _sort_back_to_front(self, mesh_faces: List[np.ndarray]) -> List[Tuple[int, int]]:
@@ -222,7 +220,7 @@ def parametric_surface(slices: int,
     """
     verts = []
     for theta in np.array(np.linspace(0, np.pi, slices + 1)):
-        for phi in np.array(np.linspace(0, 2*np.pi, slices)):
+        for phi in np.array(np.linspace(0, 2 * np.pi, slices)):
             verts.append(func(theta, phi))
     verts = np.float32(verts)
 
@@ -235,7 +233,6 @@ def parametric_surface(slices: int,
         v = v + stacks
     faces = np.int32(faces)
     return verts[faces]
-
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal

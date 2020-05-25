@@ -1,6 +1,8 @@
-from .config import ConfigDict
 from typing import Dict
+
+from .config import ConfigDict
 from ..manifolds.manifold import RiemannianManifold
+
 
 class ManifoldConfig(ConfigDict):
     """
@@ -14,4 +16,3 @@ class ManifoldConfig(ConfigDict):
         Gets an instance of the manifold specified in this config
         """
         return RiemannianManifold.from_name_params(self.name, self.params)
-

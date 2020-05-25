@@ -1,22 +1,16 @@
-from .graph_embedding_utils import ManifoldEmbedding, FeaturizedModelEmbedding, get_canonical_glove_sentence_featurizer, get_cn_vector_featurizer
-from .manifolds import RiemannianManifold, EuclideanManifold, SphericalManifold
-from .manifold_initialization import *
-from .neural import ManifoldLayer, ManifoldNetwork
-from .embedding.conceptnet.formats import load_hdf
 from .config.config_loader import get_config
-from .graph_embedder import GraphEmbedder, ManifoldEmbedding
-from .data.graph_dataset import GraphDataset
-from .optimizer_gen import register_parameter_group
-from .device_manager import get_device
 from .data.data_loader import get_training_data
+from .device_manager import get_device
 from .featurizers.featurizer import get_featurizer
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
-import random
-import time
-import torch
-import os
+from .graph_embedder import GraphEmbedder, ManifoldEmbedding
+from .graph_embedding_utils import ManifoldEmbedding
+from .manifold_initialization import *
+from .neural import ManifoldNetwork
+from .optimizer_gen import register_parameter_group
 
 __model = None
+
 
 def get_model() -> GraphEmbedder:
     """
@@ -36,7 +30,7 @@ def get_model() -> GraphEmbedder:
 
         if featurizer is None:
             __model = ManifoldEmbedding(
-                embed_manifold, 
+                embed_manifold,
                 data.n_nodes(),
                 general_config.embed_manifold_dim,
                 sparse=model_config.sparse,
@@ -58,6 +52,7 @@ def get_model() -> GraphEmbedder:
 
     return __model
 
+
 def get_feature_model():
     featurizer, featurize_dim, in_manifold = get_featurizer()
 
@@ -77,20 +72,31 @@ def get_feature_model():
     device = get_device()
 
     log_base_inits = []
-    log_base_inits.append(get_initialized_manifold_tensor(device, torch.float, [1, featurize_dim], in_manifold, manifold_initialization, requires_grad=True))
+    log_base_inits.append(
+        get_initialized_manifold_tensor(device, torch.float, [1, featurize_dim], in_manifold,
+                                        manifold_initialization, requires_grad=True))
     exp_base_inits = []
     manifold_seq = [in_manifold]
     dimension_seq = [featurize_dim]
     for i in range(len(intermediate_manifolds)):
         intermediate_manifold = intermediate_manifolds[i]
-        log_base_inits.append(get_initialized_manifold_tensor(device, torch.float, [1, intermediate_dims[i]], intermediate_manifold, manifold_initialization, requires_grad=True))
-        exp_base_inits.append(get_initialized_manifold_tensor(device, torch.float, intermediate_dims[i], intermediate_manifold, manifold_initialization, requires_grad=True))
+        log_base_inits.append(
+            get_initialized_manifold_tensor(device, torch.float, [1, intermediate_dims[i]],
+                                            intermediate_manifold, manifold_initialization,
+                                            requires_grad=True))
+        exp_base_inits.append(
+            get_initialized_manifold_tensor(device, torch.float, intermediate_dims[i],
+                                            intermediate_manifold, manifold_initialization,
+                                            requires_grad=True))
         manifold_seq.append(intermediate_manifold)
         dimension_seq.append(intermediate_dims[i])
-    exp_base_inits.append(get_initialized_manifold_tensor(device, torch.float, manifold_out_dim, manifold_out, manifold_initialization, requires_grad=True))
+    exp_base_inits.append(
+        get_initialized_manifold_tensor(device, torch.float, manifold_out_dim, manifold_out,
+                                        manifold_initialization, requires_grad=True))
     dimension_seq.append(manifold_out_dim)
     manifold_seq.append(manifold_out)
-    featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, nonlinearity, 1, log_base_inits, exp_base_inits)
+    featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, nonlinearity, 1, log_base_inits,
+                                       exp_base_inits)
     featurized_model.to(device)
     register_parameter_group(featurized_model.parameters())
     return featurized_model

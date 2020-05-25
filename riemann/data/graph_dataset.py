@@ -1,23 +1,24 @@
+from math import floor
 from typing import Iterator, Dict
+from itertools import combinations, chain
+
+import numpy as np
+from graph_tool import Graph
+from tqdm import tqdm
+from scipy.special import comb
+
 from .graph_data_batch import GraphDataBatch
 from .graph_data_batch_iterator import GraphDataBatchIterator
-from graph_tool import Graph
-import numpy as np
-from tqdm import tqdm
 from .pickle_manager import load_or_gen
-from ..config.graph_sampling_config import GraphSamplingConfig
 from ..config.config_loader import get_config
+from ..config.graph_sampling_config import GraphSamplingConfig
 from ..graph_embedder import GraphEmbedder
 from ..manifold_nns import ManifoldNNS
-from ..config.config_loader import get_config
-from math import floor
-from itertools import combinations, chain
-from scipy.special import comb
 
 
 def comb_index(n, k):
     count = comb(n, k, exact=True)
-    index = np.fromiter(chain.from_iterable(combinations(range(n), k)), 
+    index = np.fromiter(chain.from_iterable(combinations(range(n), k)),
                         int, count=count*k)
     return index.reshape(-1, k)
 
@@ -47,13 +48,13 @@ class GraphDataset:
         self.object_ids = np.asarray(object_ids)
         self.weights = weights
         self.hidden_graph = hidden_graph
-        
+
         self.graph = Graph(directed=False)
         self.graph.add_vertex(len(object_ids))
         edge_weights = [[edge[0], edge[1], weight] for edge, weight in
                         zip(self.edges, self.weights)]
         self.weight_property = self.graph.new_edge_property("float")
-        eprops = [self.weight_property]  
+        eprops = [self.weight_property]
         self.graph.add_edge_list(edge_weights, eprops=eprops)
         self.manifold_nns = None
 
@@ -99,13 +100,13 @@ class GraphDataset:
                 else:
                     all_graph_neighbors.append(
                         np.concatenate([in_edges[:, 0], out_edges[:, 1]]
-                                      ).astype(np.int64))
+                                       ).astype(np.int64))
                     all_graph_weights.append(
                         np.concatenate([in_edges[:, 2], out_edges[:, 2]]
-                                      ).astype(np.float32))
+                                       ).astype(np.float32))
 
-        graph_neighbors = np.concatenate(all_graph_neighbors)
-        graph_neighbor_weights = np.concatenate(all_graph_weights)
+        # graph_neighbors = np.concatenate(all_graph_neighbors)
+        # graph_neighbor_weights = np.concatenate(all_graph_weights)
         non_empty_vertices = np.array(non_empty_vertices, dtype=np.int64)
 
         return {
@@ -156,34 +157,38 @@ class GraphDataset:
         self.edges = edges
         self.weights = weights
 
-    def get_neighbor_iterator(self, 
+    def get_neighbor_iterator(self,
                               graph_sampling_config: GraphSamplingConfig,
-                              data_fraction: float=1,
-                             ) -> Iterator[GraphDataBatch]:
+                              data_fraction: float = 1,
+                              ) -> Iterator[GraphDataBatch]:
         """
         Gets an efficient iterator of edge batches
         """
         neighbor_data = load_or_gen(f"GraphDataset.{self.name}",
                                     self.gen_neighbor_data)
         if self.hidden_graph is None:
+            # GraphDataBatchIterator is defined in cython with these arguments.
+            # noinspection PyArgumentList
             iterator = GraphDataBatchIterator(neighbor_data,
                                               graph_sampling_config)
             iterator.data_fraction = data_fraction
 
         else:
             hidden_neighbor_data = load_or_gen(
-                f"GraphDataset.{self.hidden_graph.name}", 
+                f"GraphDataset.{self.hidden_graph.name}",
                 self.hidden_graph.gen_neighbor_data)
 
+            # GraphDataBatchIterator is defined in cython with these arguments.
+            # noinspection PyArgumentList
             iterator = GraphDataBatchIterator(neighbor_data,
-                graph_sampling_config, hidden_neighbor_data)
+                                              graph_sampling_config, hidden_neighbor_data)
             iterator.data_fraction = data_fraction
 
         if self.manifold_nns is not None:
             sampling_config = get_config().sampling
             _, nns = \
                 self.manifold_nns.knn_query_all(sampling_config.manifold_nn_k)
-            
+
             all_manifold_neighbors = [nns[i][1:].astype(np.int64) for i in
                                       range(self.n_nodes())]
             iterator.refresh_manifold_nn(all_manifold_neighbors)
@@ -238,13 +243,8 @@ class GraphDataset:
         train_data = GraphDataset(f"{name}_train_{data_config.split_seed}",
                                   train_edges, object_ids, train_weights)
 
-        eval_data = GraphDataset(f"{name}_eval_{data_config.split_seed}", 
+        eval_data = GraphDataset(f"{name}_eval_{data_config.split_seed}",
                                  eval_edges, object_ids, eval_weights,
                                  hidden_graph=train_data)
 
         return train_data, eval_data
-        
-
-
-
-

@@ -1,14 +1,15 @@
-from sacred import Experiment
 import torch
-
 from embed_save import save_ingredient, load_model
 from graph_embedding_utils import get_canonical_glove_sentence_featurizer
+from sacred import Experiment
 
 ex = Experiment('cli', ingredients=[save_ingredient])
 
+
 @ex.config
 def config():
-    neighbors=False
+    neighbors = False
+
 
 @ex.command
 def cli_search(neighbors):
@@ -41,12 +42,15 @@ def cli_search(neighbors):
             q_index = objects.index(search_q)
             dists = manifold.dist(embeddings[None, q_index], embeddings)
         else:
-            dists = manifold.dist(model(torch.tensor(featurizer(search_q), dtype=torch.double)).unsqueeze(0), embeddings)
-            
+            dists = manifold.dist(
+                model(torch.tensor(featurizer(search_q), dtype=torch.double)).unsqueeze(0),
+                embeddings)
+
         sorted_dists, sorted_indices = dists.sort()
         sorted_objects = [objects[index] for index in sorted_indices]
         for i in range(k):
             print(f"{sorted_objects[i]} - dist: {sorted_dists[i]}")
+
 
 if __name__ == '__main__':
     ex.run_commandline()

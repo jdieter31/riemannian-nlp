@@ -1,13 +1,15 @@
-from ..data.batching import BatchTask
-from ..data.graph_data_batch import GraphDataBatch
-from ..train import TrainSchedule
-from ..config.config_loader import get_config
-from ..data.data_loader import get_training_data, get_eval_data
-from ..model import get_model
 import torch
 import wandb
 
+from ..config.config_loader import get_config
+from ..data.batching import BatchTask
+from ..data.data_loader import get_training_data, get_eval_data
+from ..data.graph_data_batch import GraphDataBatch
+from ..model import get_model
+from ..train import TrainSchedule
+
 step_num = None
+
 
 class MeanRankEvaluator(BatchTask):
 
@@ -28,7 +30,7 @@ class MeanRankEvaluator(BatchTask):
 
         # Get the model
         model = get_model()
-    
+
         # Get manifold
         general_config = get_config().general
         manifold = general_config.embed_manifold.get_manifold_instance()
@@ -39,7 +41,7 @@ class MeanRankEvaluator(BatchTask):
         # Isolate portion of input that are main vertices
         main_vertices = \
             model.embed_nodes(batch.get_tensors()["vertices"]) \
-                .unsqueeze(1).expand_as(sample_vertices) 
+                .unsqueeze(1).expand_as(sample_vertices)
 
         manifold_dists = manifold.dist(main_vertices, sample_vertices)
 
@@ -58,7 +60,7 @@ class MeanRankEvaluator(BatchTask):
                                            for i in range(n_neighbors.size(0))])
         neighbor_ranks -= neighbor_adjustements.to(neighbor_ranks.device)
         neighbor_ranks = neighbor_ranks.float()
-        rec_ranks = 1 / neighbor_ranks 
+        rec_ranks = 1 / neighbor_ranks
         self.hitsat10 += (neighbor_ranks <= 10).sum().cpu().numpy()
         self.rank_sum += neighbor_ranks.sum().cpu().numpy()
         self.rec_rank_sum += rec_ranks.sum().cpu().numpy()
@@ -72,6 +74,7 @@ class MeanRankEvaluator(BatchTask):
         wandb.log({f"{log_name}/mean_rank": mean_rank}, step=step_num)
         wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
         wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
+
 
 def run_evaluation(train_schedule: TrainSchedule,
                    log_name="",
@@ -91,7 +94,6 @@ def run_evaluation(train_schedule: TrainSchedule,
     """
     global step_num
     step_num = step
-
 
     sampling_config = get_config().sampling
     eval_config = get_config().eval
@@ -113,5 +115,3 @@ def run_evaluation(train_schedule: TrainSchedule,
                              prog_desc=f"{log_name}",
                              count_iterations=False)
     mean_rank_evaluator.finish_computations_and_log(log_name)
-
-

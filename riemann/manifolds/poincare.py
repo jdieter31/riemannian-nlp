@@ -1,5 +1,6 @@
-from .manifold import RiemannianManifold
 import torch
+
+from .manifold import RiemannianManifold
 
 # Defines how close to the boundary vectors can get
 EPSILON = 1e-5
@@ -10,6 +11,8 @@ MAX_NORM = 1e9
 """
 Some miscelaneous math before the class definition
 """
+
+
 def tanh(x):
     return x.clamp(-15, 15).tanh()
 
@@ -50,10 +53,12 @@ def artanh(x):
 def arsinh(x):
     return Arsinh.apply(x)
 
+
 class PoincareBall(RiemannianManifold):
     '''
     Implementation of PoincareBall model of hyperbolic space
     '''
+
     @classmethod
     def from_params(cls, params):
         if params is not None and 'c' in params:
@@ -79,7 +84,7 @@ class PoincareBall(RiemannianManifold):
         if indices is not None:
             x.index_copy_(0, indices, self.proj_(x[indices]))
             return x
-        
+
         maxnorm = (1 - EPSILON) / (self.c ** 0.5)
         x.view(-1, x.size()[-1]).renorm_(2, 0, maxnorm)
         return x
@@ -108,11 +113,12 @@ class PoincareBall(RiemannianManifold):
         Computes the conformal factor for a point on the ball
         """
         return 2 / (1 - self.c * x.pow(2).sum(dim=-1, keepdim=keepdim)).clamp_min(MIN_NORM)
-        
+
     def exp(self, x, u):
         sqrt_c = self.c ** 0.5
         u_norm = u.norm(dim=-1, p=2, keepdim=True).clamp_min(MIN_NORM)
-        second_term = tanh(sqrt_c / 2 * self.lambda_x(x, keepdim=True) * u_norm) * u / (sqrt_c * u_norm)
+        second_term = tanh(sqrt_c / 2 * self.lambda_x(x, keepdim=True) * u_norm) * u / (
+                    sqrt_c * u_norm)
         gamma_1 = self.mobius_add(x, second_term)
         return gamma_1
 
@@ -163,5 +169,6 @@ class PoincareBall(RiemannianManifold):
         scaling_factor.unsqueeze_(-1)
         metric = metric * scaling_factor
         return metric
+
 
 RiemannianManifold.register_manifold(PoincareBall)

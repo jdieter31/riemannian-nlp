@@ -16,12 +16,15 @@ Utility functions for applying specificic initalizations to parameters on a mani
 init_func can be any funciton from torch.nn.init and params are the respective params for the init_func. When no params are specified, only the tensor is passed to the init_func.
 """
 
-def get_initialized_manifold_tensor(device, dtype, shape, manifold, initializations, requires_grad, project=True):
+
+def get_initialized_manifold_tensor(device, dtype, shape, manifold, initializations, requires_grad,
+                                    project=True):
     tensor = torch.empty(shape, dtype=dtype, device=device, requires_grad=requires_grad)
     with torch.no_grad():
         initialize_manifold_tensor(tensor, manifold, initializations, project)
     return tensor
-    
+
+
 def initialize_manifold_tensor(tensor, manifold, initializations, project=True):
     manifold_name = manifold.__class__.__name__
     if manifold_name == "ProductManifold":
@@ -44,7 +47,3 @@ def initialize_manifold_tensor(tensor, manifold, initializations, project=True):
         init_func(*args)
         if project:
             manifold.proj_(tensor)
-
-            
-
-

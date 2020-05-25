@@ -1,7 +1,9 @@
-from .manifold import RiemannianManifold
-import torch
 from typing import List
-import numpy as np
+
+import torch
+
+from .manifold import RiemannianManifold
+
 
 class ProductManifold(RiemannianManifold):
     """Implemetation of a product manifold"""
@@ -13,10 +15,11 @@ class ProductManifold(RiemannianManifold):
             submanifold_dims = []
             for i in range(len(params["submanifolds"])):
                 submanifold = params["submanifolds"][i]
-                name = submanifold["name"] 
+                name = submanifold["name"]
                 submanifold_dims.append(submanifold["dimension"])
                 if "params" in submanifold:
-                    submanifolds.append(RiemannianManifold.from_name_params(name, submanifold["params"]))
+                    submanifolds.append(
+                        RiemannianManifold.from_name_params(name, submanifold["params"]))
                 else:
                     submanifolds.append(RiemannianManifold.from_name_params(name, None))
 
@@ -24,13 +27,14 @@ class ProductManifold(RiemannianManifold):
             if "curvature_scale" in params:
                 curvature_scale = params["curvature_scale"]
                 if len(curvature_scale) != len(submanifolds):
-                   raise Exception("Curvature scale must be same dimension as parameters") 
+                    raise Exception("Curvature scale must be same dimension as parameters")
 
             return ProductManifold(submanifolds, submanifold_dims, curvature_scale)
 
         raise Exception("Improper ProductManifold param layout")
 
-    def __init__(self, submanifolds: List[RiemannianManifold], submanifold_dims: List[int], curvature_scale=None):
+    def __init__(self, submanifolds: List[RiemannianManifold], submanifold_dims: List[int],
+                 curvature_scale=None):
         """
         Args:
             submanifolds (List[RiemannianManifold]):  List of submanifolds
@@ -161,7 +165,6 @@ class ProductManifold(RiemannianManifold):
 
         return self.initialize_from_submanifold_values(submanifold_values)
 
-
     def lower_indices(self, x, dx):
         submanifold_values = []
         for i in range(len(self.submanifolds)):
@@ -181,24 +184,33 @@ class ProductManifold(RiemannianManifold):
                 sub_dx *= torch.exp(self.curvature_scale[i].to(sub_dx.device))
             self.submanifolds[i].rgrad_(sub_x, sub_dx)
         return dx
-    
+
     def tangent_proj_matrix(self, x):
         tangent_proj_matrix = torch.zeros(*x.size(), x.size()[-1], dtype=x.dtype, device=x.device)
         for i in range(len(self.submanifolds)):
             sub_slice = self.slices[i]
-            sub_matrix = tangent_proj_matrix.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
-            sub_matrix.copy_(self.submanifolds[i].tangent_proj_matrix(self.get_submanifold_value_index(x, i)))
+            sub_matrix = tangent_proj_matrix.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2,
+                                                                                           sub_slice[
+                                                                                               0],
+                                                                                           sub_slice[
+                                                                                               1])
+            sub_matrix.copy_(
+                self.submanifolds[i].tangent_proj_matrix(self.get_submanifold_value_index(x, i)))
         return tangent_proj_matrix
 
     def get_metric_tensor(self, x):
         metric_tensor = torch.zeros(*x.size(), x.size()[-1], dtype=x.dtype, device=x.device)
         for i in range(len(self.submanifolds)):
             sub_slice = self.slices[i]
-            sub_matrix = metric_tensor.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2, sub_slice[0], sub_slice[1])
-            sub_metric = self.submanifolds[i].get_metric_tensor(self.get_submanifold_value_index(x, i))
+            sub_matrix = metric_tensor.narrow(-1, sub_slice[0], sub_slice[1]).narrow(-2,
+                                                                                     sub_slice[0],
+                                                                                     sub_slice[1])
+            sub_metric = self.submanifolds[i].get_metric_tensor(
+                self.get_submanifold_value_index(x, i))
             if self.curvature_scale is not None:
                 sub_metric = sub_metric / torch.exp(self.curvature_scale[i].to(sub_metric.device))
             sub_matrix.copy_(sub_metric)
         return metric_tensor
+
 
 RiemannianManifold.register_manifold(ProductManifold)

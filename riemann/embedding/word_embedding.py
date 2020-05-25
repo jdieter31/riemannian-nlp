@@ -12,6 +12,7 @@ from .token_mapper import TokenMapper, default_token_mapper, HashTokenMapping
 root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
 default_glove_path = os.path.join(root_path, 'resources/glove.840B.300d.zip')
 
+
 class Glove:
     def __init__(
             self,
@@ -41,13 +42,15 @@ class Glove:
             # Provide a 0 padding at the beginning because it makes it much easier on the pytorch end
             # The shape and layout of self.numbers is important for the pytorch GloveEmbedding layer to work correctly,
             # so be careful about changing / make sure TestGloveEmbedding passes.
-            padded_numbers = np.zeros(shape=(self.numbers.shape[0] + 1, self.numbers.shape[1]), dtype=np.float32)
+            padded_numbers = np.zeros(shape=(self.numbers.shape[0] + 1, self.numbers.shape[1]),
+                                      dtype=np.float32)
             padded_numbers[1:] = self.numbers
             self.numbers = padded_numbers
 
         assert self.numbers.shape[
                    1] == self.embedding_dim, "Embedding dim must be same as the last dimension of numbers matrix"
-        assert self.numbers.shape[0] == self.vocab_size + 1, "Numbers matrix is not the correct size."
+        assert self.numbers.shape[
+                   0] == self.vocab_size + 1, "Numbers matrix is not the correct size."
         assert self.numbers.dtype == np.float32
 
     @classmethod
@@ -73,7 +76,8 @@ class Glove:
     @classmethod
     def from_binary(
             cls,
-            embedding_file_: Union[BinaryIO, str] = None,  # Default filled in below -- want to load it statically.
+            embedding_file_: Union[BinaryIO, str] = None,
+            # Default filled in below -- want to load it statically.
             token_mapper: TokenMapper = None
     ) -> 'Glove':
         """
@@ -84,7 +88,7 @@ class Glove:
         embedding_file: str = embedding_file_ or default_glove_path
         token_mapper = token_mapper or default_token_mapper()
 
-        with ZipFile(embedding_file) as zf: 
+        with ZipFile(embedding_file) as zf:
             print(f"Loading the embeddings from binary file ({zf.filename})")
             # Save the vocabulary as a list.
             with zf.open("vocab.txt", "r") as f:
@@ -135,6 +139,7 @@ class Glove:
         token_mapper = default_token_mapper() if token_mapper is None else token_mapper
         glove_name = os.path.splitext(os.path.basename(embedding_file))[0]
         print('Loading the embeddings from binary file ({})'.format(embedding_file))
+
         def read_int(f_):
             return struct.unpack('>i', f_.read(4))[0]
 
@@ -144,8 +149,9 @@ class Glove:
                 to_read = min(10000000, num_bytes)
                 chunk = f_.read(to_read)
                 if len(chunk) == 0:
-                    raise Exception('Got an empty chunk back! File terminated before expected! Still need ' + str(
-                        num_bytes) + ' bytes')
+                    raise Exception(
+                        'Got an empty chunk back! File terminated before expected! Still need ' + str(
+                            num_bytes) + ' bytes')
                 num_bytes -= len(chunk)
                 chunks.append(chunk)
             return b''.join(chunks)
@@ -177,7 +183,8 @@ class Glove:
         print('Vocab size: ' + str(vocab_size))
         # info('read start of characters array: '+str(characters))
 
-        assert len(vocab) == vocab_size, "Length of vocabulary does not match state vocab size in {}".format(
+        assert len(
+            vocab) == vocab_size, "Length of vocabulary does not match state vocab size in {}".format(
             embedding_file)
 
         return cls(
@@ -195,7 +202,8 @@ class Glove:
         :param compress: where to save contents
         :return:
         """
-        with ZipFile(file, "w", compression=zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED) as zf:
+        with ZipFile(file, "w",
+                     compression=zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED) as zf:
             # Save the vocabulary as a list.
             f = zf.open("vocab.txt", "w")
             for v in self.vocab:
@@ -303,7 +311,8 @@ class Glove:
                 return True
             return key in self.vocab_dict
         else:
-            raise ValueError(f"Tried to check containment of a {type(key)} which isn't an int or string")
+            raise ValueError(
+                f"Tried to check containment of a {type(key)} which isn't an int or string")
 
     def __getitem__(self, key):
         if type(key) == int:

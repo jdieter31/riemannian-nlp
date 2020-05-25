@@ -1,9 +1,11 @@
-import abc 
-from typing import Iterator, Tuple, List
-from .data.batching import DataBatch, BatchTask
-from tqdm import tqdm
-import wandb
+import abc
 from typing import Callable
+from typing import Iterator, Tuple, List
+
+from tqdm import tqdm
+
+from .data.batching import DataBatch, BatchTask
+
 
 class TrainSchedule(abc.ABC):
     """
@@ -34,8 +36,8 @@ class TrainSchedule(abc.ABC):
 
     def run_epoch(self, epoch: Tuple[Iterator[DataBatch],
                                      Iterator[List[BatchTask]]],
-                  prog_desc: str="Batches",
-                  count_iterations: bool=True):
+                  prog_desc: str = "Batches",
+                  count_iterations: bool = True):
         """
         Runs an epoch. This will be called on what is returned from
         epoch_iterator. That should be the main way to start epochs but this
@@ -52,15 +54,15 @@ class TrainSchedule(abc.ABC):
         """
         data_iterator, task_iterator = epoch
 
-        for batch, tasks in tqdm(zip(data_iterator, task_iterator), 
-                                 total=len(data_iterator), 
+        for batch, tasks in tqdm(zip(data_iterator, task_iterator),
+                                 total=len(data_iterator),
                                  desc=prog_desc, dynamic_ncols=True):
             for task in tasks:
                 task.process_batch(batch)
 
             if count_iterations:
                 for task, repeat_every, cycle_on_iterations in \
-                    self.cyclic_tasks:
+                        self.cyclic_tasks:
 
                     if not cycle_on_iterations:
                         # This task is meant for epochs not iterations
@@ -72,7 +74,7 @@ class TrainSchedule(abc.ABC):
                 self.iteration_num += 1
 
     def add_cyclic_task(self, task: Callable[[], None], repeat_every: int,
-                        cycle_on_iterations: bool=True):
+                        cycle_on_iterations: bool = True):
         """
         Adds a task to be repeated cyclically during the training cycle.
 
@@ -86,13 +88,13 @@ class TrainSchedule(abc.ABC):
         """
         self.cyclic_tasks.append((task, repeat_every, cycle_on_iterations))
 
-    def train(self): 
+    def train(self):
         """
         Trains according to the schedule
         """
 
         for task, repeat_every, cycle_on_iterations in \
-            self.cyclic_tasks:
+                self.cyclic_tasks:
 
             if cycle_on_iterations:
                 # This task is meant for iterations not epochs
@@ -101,12 +103,12 @@ class TrainSchedule(abc.ABC):
             if self.epoch_num % repeat_every == 0:
                 task()
 
-        for epoch in self.epoch_iterator(): 
+        for epoch in self.epoch_iterator():
             self.run_epoch(epoch)
             self.epoch_num += 1
 
             for task, repeat_every, cycle_on_iterations in \
-                self.cyclic_tasks:
+                    self.cyclic_tasks:
 
                 if cycle_on_iterations:
                     # This task is meant for iterations not epochs
@@ -114,6 +116,3 @@ class TrainSchedule(abc.ABC):
 
                 if self.epoch_num % repeat_every == 0:
                     task()
-
-
-

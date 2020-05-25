@@ -1,5 +1,6 @@
 from .config import ConfigDict
 
+
 class GraphSamplingConfig(ConfigDict):
     """
     Provides a configuration for the neighbor sampling algorithm
@@ -27,5 +28,3 @@ class GraphSamplingConfig(ConfigDict):
     Number of workers to use when running the graph sampling algorithm
     """
     num_workers: int = 4
-
-     

@@ -4,6 +4,7 @@ import pickle
 root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
 pickle_dir = os.path.join(root_path, "data/pickles/")
 
+
 def load_or_gen(data_name, gen_func):
     """
     Loads or generates and saves a piece of data
@@ -24,7 +25,3 @@ def load_or_gen(data_name, gen_func):
         pickle.dump(data, open(data_path, "wb"))
 
     return data
-
-
-
-

@@ -2,15 +2,15 @@
 Tools for saving a global config for the project that automatically reads
 modularized configs
 """
-from .config import ConfigDict, ConfigDictParser
-from typing import List, Dict
-import json
-import collections.abc
-import pkgutil
-import os
 import importlib
-import sys
 import inspect
+import json
+import os
+import pkgutil
+import sys
+from typing import Dict
+
+from .config import ConfigDict, ConfigDictParser
 
 
 class GlobalConfigDictMeta(type):
@@ -18,11 +18,13 @@ class GlobalConfigDictMeta(type):
     Meta-class for GlobalConfigDict - programmatically injects each ConfigDic
     sublass in config_specs into GlobalConfigDict as well as type hints
     """
+
     @staticmethod
     def _get_config_specs():
         config_specs: Dict = {}
 
-        for (module_loader, name, ispkg) in pkgutil.iter_modules([os.path.dirname(__file__) + "/config_specs"]):
+        for (module_loader, name, ispkg) in pkgutil.iter_modules(
+                [os.path.dirname(__file__) + "/config_specs"]):
 
             # Run register_config_spec for each detected config_spec
             importlib.import_module(".config_specs." + name, __package__)
@@ -62,6 +64,7 @@ class GlobalConfigDictMeta(type):
             namespace[name] = config_spec()
         return super().__new__(mcs, name, bases, namespace, **kwds)
 
+
 class GlobalConfigDict(ConfigDict, metaclass=GlobalConfigDictMeta):
     """
     Stores all of the specific configs registered
@@ -72,7 +75,9 @@ class GlobalConfigDict(ConfigDict, metaclass=GlobalConfigDictMeta):
     this way modular configs can be dynamically loaded.
     """
 
+
 global_config: GlobalConfigDict
+
 
 def get_config():
     """
@@ -80,8 +85,9 @@ def get_config():
     """
     return global_config
 
-def initialize_config(path:str=None, load_config:bool=False, config_updates:str="",
-                      save_config:bool=False, save_directory:str=None):
+
+def initialize_config(path: str = None, load_config: bool = False, config_updates: str = "",
+                      save_config: bool = False, save_directory: str = None):
     """
     Initializes global config - run before referencing global_config
     Args:
@@ -109,4 +115,3 @@ def initialize_config(path:str=None, load_config:bool=False, config_updates:str=
             save_directory = path
         with open(save_directory, "w+") as outfile:
             json.dump(global_config.as_json(), outfile)
-

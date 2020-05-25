@@ -1,15 +1,14 @@
 from .graph_text_featurizer import GraphObjectIDFeaturizer
 from .text_featurizer import TextFeaturizer
-from .graph_text_featurizer import GraphObjectIDFeaturizer
-from .text_featurizer import TextFeaturizer
+from ..embedding.conceptnet import standardized_uri
 from ..embedding.conceptnet.query import VectorSpaceWrapper
 from ..manifolds import RiemannianManifold, EuclideanManifold
-from ..embedding.conceptnet import standardized_uri
+
 
 class ConceptNetVectorFeaturizer(GraphObjectIDFeaturizer, TextFeaturizer):
 
     def __init__(self, data_file: str,
-                 manifold: RiemannianManifold=EuclideanManifold()):
+                 manifold: RiemannianManifold = EuclideanManifold()):
         """
         Params:
             data_file (str): location of the file containing the vectors in
@@ -20,17 +19,17 @@ class ConceptNetVectorFeaturizer(GraphObjectIDFeaturizer, TextFeaturizer):
         self.wrapper = VectorSpaceWrapper(vector_filename=data_file)
         wrapper.load()
         self.manifold = manifold
-    
+
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
-                         numpy.ndarray) -> torch.Tensor:
+    numpy.ndarray) -> torch.Tensor:
         embeddings = []
         for object_id in object_ids:
             vector = self.wrapper.get_vector(object_id)
             embeddings.append(self.manifold.proj(torch.Tensor(vector)))
-        
+
         return torch.cat(embeddings)
 
-     def embed_text(self, data: List[str]):
+    def embed_text(self, data: List[str]):
         embeddings = []
         for word in data:
             if word.startswith("/c/"):
@@ -47,8 +46,3 @@ class ConceptNetVectorFeaturizer(GraphObjectIDFeaturizer, TextFeaturizer):
 
     def get_manifold(self):
         return self.manifold
-
-            
-
-
-    

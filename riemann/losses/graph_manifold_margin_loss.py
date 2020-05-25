@@ -1,8 +1,10 @@
-from ..graph_embedder import GraphEmbedder
 import torch
 from torch.nn.functional import relu
+
 from ..data.graph_data_batch import GraphDataBatch
+from ..graph_embedder import GraphEmbedder
 from ..manifolds import RiemannianManifold
+
 
 def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                manifold: RiemannianManifold, margin=0.01,
@@ -23,14 +25,14 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     Returns:
         pytorch scalar: Computed loss
     """
-    
+
     # Isolate portion of input that are neighbors
     sample_vertices = model.embed_nodes(batch.get_tensors()["neighbors"])
 
     # Isolate portion of input that are main vertices
     main_vertices = \
         model.embed_nodes(batch.get_tensors()["vertices"]) \
-            .unsqueeze(1).expand_as(sample_vertices) 
+            .unsqueeze(1).expand_as(sample_vertices)
 
     manifold_dists = manifold.dist(main_vertices, sample_vertices)
 
@@ -45,7 +47,7 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1],
                          manifold_dists.size()[1]]
     row_expanded = \
-            manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
+        manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
     column_expanded = \
         manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
 
@@ -71,5 +73,3 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     masked_diff_matrix[masked_diff_matrix == float('inf')] = 0
     loss = masked_diff_matrix.sum(dim=-1).sum(dim=-1).mean()
     return loss
-
-

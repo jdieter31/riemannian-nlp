@@ -1,19 +1,21 @@
-import os
+from math import ceil, sqrt
+
+import faiss
 import numpy as np
 import torch
-from .manifolds import RiemannianManifold
 from tqdm import tqdm
-from math import ceil, sqrt
-import faiss
+
 from .config.config_loader import get_config
+from .manifolds import RiemannianManifold
 
 
 class ManifoldNNS:
-    def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold, samples_for_pole: int=10000):
+    def __init__(self, data_points: torch.Tensor, manifold: RiemannianManifold,
+                 samples_for_pole: int = 10000):
         self.manifold = manifold
         self.compute_index(data_points, samples_for_pole)
 
-    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int=10000):
+    def compute_index(self, data_points: torch.Tensor, samples_for_pole: int = 10000):
         data_points = data_points.cpu()
         if samples_for_pole == 0:
             samples_for_pole = data_points.size(0)
@@ -22,7 +24,7 @@ class ManifoldNNS:
         self.pole = compute_pole(data_points[idx], self.manifold)
 
         tqdm.write("Creating nns index")
-        ivf_size = 2**(ceil(4 * sqrt(data_points.size(0)) - 1)).bit_length()
+        ivf_size = 2 ** (ceil(4 * sqrt(data_points.size(0)) - 1)).bit_length()
         index_flat = faiss.index_factory(data_points.size(-1),
                                          f"PCAR16,IVF{ivf_size},SQ4")
 
@@ -52,8 +54,9 @@ class ManifoldNNS:
                       dynamic_ncols=True):
             start_index = i * block_size
             end_index = min((i + 1) * block_size, data_points.size(0))
-            self.data_embedding[start_index:end_index] = self.manifold.log(pole_batch[0: end_index-start_index], data_points[start_index:end_index])
-        
+            self.data_embedding[start_index:end_index] = self.manifold.log(
+                pole_batch[0: end_index - start_index], data_points[start_index:end_index])
+
         tqdm.write("Training Index")
         train_size = int(20 * sqrt(data_points.size(0)))
         perm = torch.randperm(data_points.size(0))
@@ -63,7 +66,7 @@ class ManifoldNNS:
         self.index.train(train_points)
         tqdm.write("Adding Vectors to Index")
         self.index.add(self.data_embedding.cpu().detach().numpy())
-        
+
     def knn_query_batch_vectors(self, data, k=10, log_space=False):
         pole_batch = self.pole.unsqueeze(0).expand_as(data)
         if log_space:
@@ -81,21 +84,22 @@ class ManifoldNNS:
         return self.knn_query_batch_vectors(self.data_embedding[indices], k, log_space=True)
 
     def knn_query_all(self, k=10):
-        block_size = self.data_embedding.size()[0]//3
-        num_blocks = ceil(self.data_embedding.size()[0]/block_size)
-        dists, nns = None, None        
+        block_size = self.data_embedding.size()[0] // 3
+        num_blocks = ceil(self.data_embedding.size()[0] / block_size)
+        dists, nns = None, None
         for i in tqdm(range(num_blocks), desc="knn_query", dynamic_ncols=True):
             start_index = i * block_size
-            end_index = min((i+1) * block_size, self.data_embedding.size()[0])
+            end_index = min((i + 1) * block_size, self.data_embedding.size()[0])
             block_dists, block_nns = self.knn_query_batch_indices(
                 torch.arange(start_index, end_index,
-                            dtype=torch.long, device=self.data_embedding.device), k)
+                             dtype=torch.long, device=self.data_embedding.device), k)
             if dists is None:
                 dists, nns = block_dists, block_nns
             else:
                 dists = np.concatenate((dists, block_dists))
                 nns = np.concatenate((nns, block_nns))
         return dists, nns
+
 
 def compute_pole(data_samples: torch.Tensor, manifold: RiemannianManifold):
     running_pole = data_samples[0].clone()
@@ -105,8 +109,11 @@ def compute_pole(data_samples: torch.Tensor, manifold: RiemannianManifold):
         running_pole = manifold.exp(running_pole, weighted)
     return running_pole
 
-def compute_pole_batch(data: torch.Tensor, manifold: RiemannianManifold, samples_per_pole=1000, num_poles=15):
-    permuted_data = data.new_empty([num_poles, min(samples_per_pole, data.size(0)), data.size()[-1]])
+
+def compute_pole_batch(data: torch.Tensor, manifold: RiemannianManifold, samples_per_pole=1000,
+                       num_poles=15):
+    permuted_data = data.new_empty(
+        [num_poles, min(samples_per_pole, data.size(0)), data.size()[-1]])
     for i in range(num_poles):
         perm = torch.randperm(data.size(0))
         idx = perm[:min(samples_per_pole, perm.size(0))]
@@ -117,5 +124,3 @@ def compute_pole_batch(data: torch.Tensor, manifold: RiemannianManifold, samples
         weighted = log_mu_x / (i + 2)
         running_poles = manifold.exp(running_poles, weighted)
     return running_poles
-
-

@@ -1,7 +1,9 @@
 import abc
+
 import torch
 
 MANIFOLD_TYPES = []
+
 
 class RiemannianManifold(abc.ABC):
     '''
@@ -39,9 +41,9 @@ class RiemannianManifold(abc.ABC):
             params(any): Subclass specific parameters - ideally should only contain human readable parameters
         '''
         raise NotImplementedError
-    
+
     @abc.abstractmethod
-    def retr(self, x: torch.Tensor, u: torch.Tensor, indices: torch.Tensor=None):
+    def retr(self, x: torch.Tensor, u: torch.Tensor, indices: torch.Tensor = None):
         '''Performs retraction map on manifold at point x with tangent vector u
 
         Args:
@@ -56,7 +58,7 @@ class RiemannianManifold(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def retr_(self, x: torch.Tensor, u: torch.Tensor, indices: torch.Tensor=None):
+    def retr_(self, x: torch.Tensor, u: torch.Tensor, indices: torch.Tensor = None):
         '''In-place version of retr'''
 
         raise NotImplementedError
@@ -75,7 +77,7 @@ class RiemannianManifold(abc.ABC):
         '''
 
         raise NotImplementedError
-    
+
     @abc.abstractmethod
     def log(self, x: torch.Tensor, y: torch.Tensor):
         '''Computes the log map of a point y from a point x
@@ -105,7 +107,7 @@ class RiemannianManifold(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def proj(self, x: torch.Tensor, indices: torch.Tensor=None):
+    def proj(self, x: torch.Tensor, indices: torch.Tensor = None):
         '''Projects x onto the manifold
 
         Args:
@@ -115,11 +117,11 @@ class RiemannianManifold(abc.ABC):
         Returns:
             x_proj (torch.Tensor): the result of the porjection
         '''
-        
+
         raise NotImplementedError
 
     @abc.abstractmethod
-    def proj_(self, x: torch.Tensor, indices: torch.Tensor=None):
+    def proj_(self, x: torch.Tensor, indices: torch.Tensor = None):
         '''In-place version of proj'''
 
         raise NotImplementedError
@@ -127,7 +129,7 @@ class RiemannianManifold(abc.ABC):
     @abc.abstractmethod
     def lower_indices(self, x: torch.Tensor, dx: torch.Tensor):
         '''Raise indices of vector field by scaling by metric'''
-        
+
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -165,6 +167,3 @@ class RiemannianManifold(abc.ABC):
         Get the metric tensor at point x
         """
         raise NotImplementedError
-
-    
-

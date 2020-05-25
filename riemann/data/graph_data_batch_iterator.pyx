@@ -3,29 +3,29 @@
 # cython: wraparound=False
 # cython: cdivision=True
 
-cimport numpy as npc
-cimport cython
+import queue
+import threading
+from math import ceil
 
 import numpy as np
-import pickle
 import torch
-from libcpp cimport bool
-from libcpp.vector cimport vector
-from libcpp.unordered_set cimport unordered_set
-from libcpp.unordered_map cimport unordered_map
-from libcpp.utility cimport pair
-from libc.math cimport pow
-from libc.stdlib cimport rand, RAND_MAX, malloc, free
-from libc.stdio cimport printf
-import threading
-import queue
-import copy
-from graph_tool import Graph
-from ..manifold_nns import ManifoldNNS
-from tqdm import tqdm
-from math import ceil
+from libc.math cimport
+
+pow
+from libc.stdlib cimport
+
+RAND_MAX
+from libcpp cimport
+
+bool
+from libcpp.unordered_map cimport
+
+unordered_map
+from libcpp.unordered_set cimport
+
+unordered_set
+
 from .graph_data_batch import GraphDataBatch
-from ..config.graph_sampling_config import GraphSamplingConfig
 
 # Thread safe random number generation.  libcpp doesn't expose rand_r...
 cdef unsigned long rand_r(unsigned long* seed) nogil:

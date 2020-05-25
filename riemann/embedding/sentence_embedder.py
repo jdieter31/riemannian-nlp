@@ -3,9 +3,9 @@ from typing import Set
 
 import numpy as np
 
-from .word_embedding import Glove
 from .core_nlp import SimpleSentence
 from .term_frequencies import TermFrequencies
+from .word_embedding import Glove
 
 
 class SentenceEmbedder(ABC):
@@ -51,7 +51,7 @@ class GloveSentenceEmbedder(SentenceEmbedder):
             pos_whitelist: Set[str] = None,
             lemma_blacklist: Set[str] = None,
             term_frequencies: TermFrequencies = None,
-            lemmatize: bool=True,
+            lemmatize: bool = True,
     ):
         self.glove = glove
         self.pos_whitelist = pos_whitelist if pos_whitelist is not None else GloveSentenceEmbedder.POS_WHITELIST
@@ -87,7 +87,8 @@ class GloveSentenceEmbedder(SentenceEmbedder):
     def include_in_embedding(self, lemma: str = None, pos: str = None):
         should_include = True
         should_include &= ((self.lemma_blacklist is None) or (lemma not in self.lemma_blacklist))
-        should_include &= ((self.pos_whitelist is None) or (pos is None) or pos == '' or (pos in self.pos_whitelist))
+        should_include &= ((self.pos_whitelist is None) or (pos is None) or pos == '' or (
+                    pos in self.pos_whitelist))
         return should_include
 
     def embed(
@@ -122,8 +123,9 @@ class GloveSentenceEmbedder(SentenceEmbedder):
                 token = token.lower()
             if lemma == "" or pos == "":
                 if verbose:
-                    print("Got an empty POS tag and/or Lemma. Setting lemma to be token to compensate. username=" +
-                         str(username) + "; knol_id=" + str(knol_id))
+                    print(
+                        "Got an empty POS tag and/or Lemma. Setting lemma to be token to compensate. username=" +
+                        str(username) + "; knol_id=" + str(knol_id))
                 lemma = token
             if not use_filter or self.include_in_embedding(lemma, pos):
                 idx = self.glove.lookup_word(lemma if self.lemmatize else token)
@@ -139,7 +141,8 @@ class GloveSentenceEmbedder(SentenceEmbedder):
                 return vec / valid_tokens
         elif use_filter:
             # back off to a non filtered embedding if no valid tokens were used and we have a 0 vector
-            return self.embed(sentence, use_filter=False, l2_normalize=l2_normalize, ignore_case=ignore_case,
+            return self.embed(sentence, use_filter=False, l2_normalize=l2_normalize,
+                              ignore_case=ignore_case,
                               verbose=verbose, username=username, knol_id=knol_id)
         else:
             return vec

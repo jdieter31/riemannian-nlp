@@ -1,29 +1,31 @@
+from math import ceil
+from typing import List
+
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
-from torch.nn.functional import cross_entropy, kl_div, log_softmax, softmax, relu_, mse_loss, cosine_similarity, relu
-from .manifolds import RiemannianManifold, EuclideanManifold
-from .manifold_tensors import ManifoldParameter
-from typing import Dict, List
+from torch.nn.functional import relu
+from tqdm import tqdm
+
+from .embed_save import Savable
+from .embed_save import load, save_data
+from .embedding import Glove
 from .embedding import GloveSentenceEmbedder
 from .embedding import SimpleSentence
-from .embedding import Glove
-from tqdm import tqdm
-from .embed_save import Savable
-from .jacobian import compute_jacobian
-import numpy as np
-from .manifold_initialization import initialize_manifold_tensor, get_initialized_manifold_tensor
-from torch.autograd import Function
-from math import ceil
-from tqdm import tqdm
-import numpy as np
-from .embedding.conceptnet.query import VectorSpaceWrapper
 from .embedding.conceptnet import standardized_uri
-from .embed_save import load, save_data
+from .embedding.conceptnet.query import VectorSpaceWrapper
+from .jacobian import compute_jacobian
+from .manifold_initialization import initialize_manifold_tensor, get_initialized_manifold_tensor
+from .manifold_tensors import ManifoldParameter
+from .manifolds import RiemannianManifold, EuclideanManifold
 
 EPSILON = 1e-9
 
-def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_distances: torch.Tensor, manifold: RiemannianManifold, margin=0.01, discount_factor=0.9):
+
+def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor,
+                                train_distances: torch.Tensor, manifold: RiemannianManifold,
+                                margin=0.01, discount_factor=0.9):
     """
     See write up for details on this loss function -- encourages embeddings to preserve graph topology
     Parameters:
@@ -38,10 +40,10 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     Returns:
         pytorch scalar: Computed loss
     """
-    
+
     input_embeddings = model(inputs)
 
-    sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1)-1)
+    sample_vertices = input_embeddings.narrow(1, 1, input_embeddings.size(1) - 1)
     main_vertices = input_embeddings.narrow(1, 0, 1).expand_as(sample_vertices)
     manifold_dists = manifold.dist(main_vertices, sample_vertices)
 
@@ -50,7 +52,8 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     # manifold_dists_sorted.add_(EPSILON).log_()
     # manifold_dists_sorted = manifold_dists_sorted ** 2
     # manifold_dists_sorted = (manifold_dists_sorted + EPSILON).log()
-    diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1], manifold_dists.size()[1]]
+    diff_matrix_shape = [manifold_dists.size()[0], manifold_dists.size()[1],
+                         manifold_dists.size()[1]]
     row_expanded = manifold_dists_sorted.unsqueeze(2).expand(*diff_matrix_shape)
     column_expanded = manifold_dists_sorted.unsqueeze(1).expand(*diff_matrix_shape)
     diff_matrix = row_expanded - column_expanded + margin
@@ -66,7 +69,10 @@ def manifold_dist_loss_relu_sum(model: nn.Module, inputs: torch.Tensor, train_di
     loss = masked_diff_matrix.sum(-1).mean()
     return loss
 
-def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold, out_manifold: RiemannianManifold, out_dimension: int, isometric=False, random_samples=0, random_init = None):
+
+def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: RiemannianManifold,
+                out_manifold: RiemannianManifold, out_dimension: int, isometric=False,
+                random_samples=0, random_init=None):
     """
     See write up for details on this loss functions -- encourages model to be isometric or to be conformal
     Parameters:
@@ -86,7 +92,8 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     """
     input_embeddings = model.map_to_input_embeddings(input_embeddings)
     if random_samples > 0:
-        random_samples = torch.empty(random_samples, input_embeddings.size()[1], dtype=input_embeddings.dtype, device=input_embeddings.device)
+        random_samples = torch.empty(random_samples, input_embeddings.size()[1],
+                                     dtype=input_embeddings.dtype, device=input_embeddings.device)
         initialize_manifold_tensor(random_samples, in_manifold, random_init)
         input_embeddings = torch.cat([input_embeddings, random_samples])
 
@@ -95,16 +102,20 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
     tangent_proj_out_shape = tangent_proj_out.size()
-    tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2], tangent_proj_out_shape[-1])
+    tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2],
+                                                   tangent_proj_out_shape[-1])
     jacobian_batch = jacobian.view(-1, jacobian_shape[-2], jacobian_shape[-1])
 
     tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
     proj_eigenval, proj_eigenvec = torch.symeig(tangent_proj_in, eigenvectors=True)
     first_nonzero = (proj_eigenval > 1e-3).nonzero()[0][1]
-    significant_eigenvec = proj_eigenvec.narrow(-1, first_nonzero, proj_eigenvec.size()[-1] - first_nonzero)
+    significant_eigenvec = proj_eigenvec.narrow(-1, first_nonzero,
+                                                proj_eigenvec.size()[-1] - first_nonzero)
     significant_eigenvec_shape = significant_eigenvec.size()
-    significant_eigenvec_batch = significant_eigenvec.view(-1, significant_eigenvec_shape[-2], significant_eigenvec_shape[-1])
-    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch), significant_eigenvec_batch)
+    significant_eigenvec_batch = significant_eigenvec.view(-1, significant_eigenvec_shape[-2],
+                                                           significant_eigenvec_shape[-1])
+    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch),
+                                  significant_eigenvec_batch)
     metric_conjugator_t = torch.transpose(metric_conjugator, -2, -1)
     out_metric = out_manifold.get_metric_tensor(model_out)
     out_metric_shape = out_metric.size()
@@ -117,7 +128,7 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
     in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
-    
+
     if not isometric:
         in_metric_reduced = in_metric_reduced / in_metric_reduced.norm(dim=(-2, -1), keepdim=True)
         pullback_metric = pullback_metric / pullback_metric.norm(dim=(-2, -1), keepdim=True)
@@ -135,6 +146,7 @@ def metric_loss(model: nn.Module, input_embeddings: torch.Tensor, in_manifold: R
 
     return loss
 
+
 def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
@@ -143,16 +155,19 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     log_eig = torch.log(eigenvalues + 0.0001)
     return (log_eig * log_eig).sum(dim=-1)
 
+
 def closest_pd_matrix(matrix: torch.Tensor):
     eigenvalues, vectors = torch.symeig(matrix, eigenvectors=True)
     eigenvalues = relu(eigenvalues)
     diag_vals = torch.diag_embed(eigenvalues, offset=0, dim1=-2, dim2=-1)
     nearest_psd = torch.bmm(torch.bmm(vectors, diag_vals), vectors.transpose(-1, -2))
     if eigenvalues.min() < 1e-3:
-        offset = 1e-3 * torch.eye(nearest_psd.size()[-1], device=nearest_psd.device, dtype=nearest_psd.dtype).unsqueeze(0).expand_as(nearest_psd)
+        offset = 1e-3 * torch.eye(nearest_psd.size()[-1], device=nearest_psd.device,
+                                  dtype=nearest_psd.dtype).unsqueeze(0).expand_as(nearest_psd)
         return nearest_psd + offset
     else:
         return nearest_psd
+
 
 def log_det_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     ab_product = torch.bmm(matrix_a, matrix_b)
@@ -161,6 +176,7 @@ def log_det_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     logdet_product = (torch.logdet(ab_product) / 2)
     divergence = logdet_sum - logdet_product
     return divergence
+
 
 class ManifoldEmbedding(Embedding, Savable):
 
@@ -175,12 +191,15 @@ class ManifoldEmbedding(Embedding, Savable):
             scale_grad_by_freq=False,
             sparse=False,
             _weight=None):
-        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm, norm_type=norm_type, scale_grad_by_freq=scale_grad_by_freq, sparse=sparse, _weight=_weight)
+        super().__init__(num_embeddings, embedding_dim, padding_idx=padding_idx, max_norm=max_norm,
+                         norm_type=norm_type, scale_grad_by_freq=scale_grad_by_freq, sparse=sparse,
+                         _weight=_weight)
 
         self.manifold = manifold
-        self.params = [manifold, num_embeddings, embedding_dim, padding_idx, max_norm, norm_type, scale_grad_by_freq, sparse]
+        self.params = [manifold, num_embeddings, embedding_dim, padding_idx, max_norm, norm_type,
+                       scale_grad_by_freq, sparse]
         self.weight = ManifoldParameter(self.weight.data, manifold=manifold)
-    
+
     def get_embedding_matrix(self):
         return self.weight.data
 
@@ -201,8 +220,11 @@ class ManifoldEmbedding(Embedding, Savable):
     def get_savable_model(self):
         return self
 
+
 class FeaturizedModelEmbedding(nn.Module):
-    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold, out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None, manifold_initialization=None, deltas=False):
+    def __init__(self, embedding_model: nn.Module, features_list, in_manifold, out_manifold,
+                 out_dim, featurizer=None, featurizer_dim=0, dtype=torch.float, device=None,
+                 manifold_initialization=None, deltas=False):
         super(FeaturizedModelEmbedding, self).__init__()
         self.embedding_model = embedding_model
         self.embedding_model.to(device)
@@ -212,10 +234,11 @@ class FeaturizedModelEmbedding(nn.Module):
         self.featurizer = featurizer
         self.featurizer_dim = featurizer_dim
         self.out_manifold = out_manifold
-        self.input_embedding, self.index_map, additional_embeddings_init = get_featurized_embedding(features_list, featurizer, featurizer_dim, dtype=dtype, device=device)
+        self.input_embedding, self.index_map, additional_embeddings_init = get_featurized_embedding(
+            features_list, featurizer, featurizer_dim, dtype=dtype, device=device)
         self.input_embedding.to('cpu')
         additional_embeddings_norm = additional_embeddings_init.weight.norm(dim=-1)
-        
+
         in_manifold.proj_(self.input_embedding.weight)
         self.deltas = deltas
         if deltas:
@@ -227,9 +250,11 @@ class FeaturizedModelEmbedding(nn.Module):
         self.additional_index_map = None
         num_non_featurized = torch.sum(self.index_map < 0)
         if num_non_featurized > 0:
-            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized, featurizer_dim, sparse=False)
+            self.additional_embeddings = ManifoldEmbedding(in_manifold, num_non_featurized,
+                                                           featurizer_dim, sparse=False)
             self.additional_embeddings.to(device)
-            self.additional_embeddings.weight.data = torch.tensor(additional_embeddings_init.weight, requires_grad=True)
+            self.additional_embeddings.weight.data = torch.tensor(additional_embeddings_init.weight,
+                                                                  requires_grad=True)
             additional_embeddings_norm = self.additional_embeddings.weight.norm(dim=-1)
             num_zero = (additional_embeddings_norm == 0).nonzero().size(0)
             zero_indices = (additional_embeddings_norm == 0).nonzero().squeeze()
@@ -260,8 +285,10 @@ class FeaturizedModelEmbedding(nn.Module):
                     for i in range(num_perms):
                         start_index = self.input_embedding.weight.size(0) * i
                         end_index = min(self.input_embedding.weight.size(0) * (i + 1), num_zero)
-                        perm = torch.randperm(self.input_embedding.weight.size(0), device=device)[:end_index - start_index]
-                        self.additional_embeddings.weight.data[zero_indices][start_index : end_index] = self.input_embedding.weight[perm]
+                        perm = torch.randperm(self.input_embedding.weight.size(0), device=device)[
+                               :end_index - start_index]
+                        self.additional_embeddings.weight.data[zero_indices][
+                        start_index: end_index] = self.input_embedding.weight[perm]
 
                     tangent_space = EuclideanManifold()
                     if self.additional_embeddings.weight.size(0) > 1000:
@@ -271,14 +298,19 @@ class FeaturizedModelEmbedding(nn.Module):
                     block_size = ceil(self.additional_embeddings.weight.size(0) / blocks)
                     for i in tqdm(range(blocks)):
                         start_index = i * block_size
-                        end_index = min((i + 1) * block_size, self.additional_embeddings.weight.size(0))
-                        vector_offset = get_initialized_manifold_tensor(device, dtype, [end_index - start_index] + list(self.additional_embeddings.weight.size()[1:]), tangent_space, {
-                                'global': {
-                                    'init_func': 'normal_',
-                                    'params': [0, 0.00001]
-                                }
-                            }, False)
-                        self.additional_embeddings.weight[start_index:end_index] = in_manifold.retr(self.additional_embeddings.weight[start_index:end_index], vector_offset)
+                        end_index = min((i + 1) * block_size,
+                                        self.additional_embeddings.weight.size(0))
+                        vector_offset = get_initialized_manifold_tensor(device, dtype, [
+                            end_index - start_index] + list(
+                            self.additional_embeddings.weight.size()[1:]), tangent_space, {
+                                                                            'global': {
+                                                                                'init_func': 'normal_',
+                                                                                'params': [0,
+                                                                                           0.00001]
+                                                                            }
+                                                                        }, False)
+                        self.additional_embeddings.weight[start_index:end_index] = in_manifold.retr(
+                            self.additional_embeddings.weight[start_index:end_index], vector_offset)
 
                     tangent_space = EuclideanManifold()
                     if num_zero > 1000:
@@ -289,15 +321,23 @@ class FeaturizedModelEmbedding(nn.Module):
                     for i in tqdm(range(blocks)):
                         start_index = i * block_size
                         end_index = min((i + 1) * block_size, num_zero)
-                        vector_offset = get_initialized_manifold_tensor(device, dtype, [end_index - start_index] + list(self.additional_embeddings.weight.size()[1:]), tangent_space, {
-                                'global': {
-                                    'init_func': 'normal_',
-                                    'params': [0, 0.0001]
-                                }
-                            }, False)
-                        self.additional_embeddings.weight[zero_indices][start_index:end_index] = in_manifold.retr(self.additional_embeddings.weight[zero_indices][start_index:end_index], vector_offset)
+                        vector_offset = get_initialized_manifold_tensor(device, dtype, [
+                            end_index - start_index] + list(
+                            self.additional_embeddings.weight.size()[1:]), tangent_space, {
+                                                                            'global': {
+                                                                                'init_func': 'normal_',
+                                                                                'params': [0,
+                                                                                           0.0001]
+                                                                            }
+                                                                        }, False)
+                        self.additional_embeddings.weight[zero_indices][
+                        start_index:end_index] = in_manifold.retr(
+                            self.additional_embeddings.weight[zero_indices][start_index:end_index],
+                            vector_offset)
             self.additional_index_map = torch.zeros_like(self.index_map) - 1
-            self.additional_index_map[self.index_map < 0] = torch.arange(0, num_non_featurized, dtype=self.index_map.dtype, device=device)
+            self.additional_index_map[self.index_map < 0] = torch.arange(0, num_non_featurized,
+                                                                         dtype=self.index_map.dtype,
+                                                                         device=device)
             """
             if manifold_initialization is not None:
                 print("Computing initialization of multi-word vertices...")
@@ -374,7 +414,8 @@ class FeaturizedModelEmbedding(nn.Module):
     def forward(self, x):
         out = self.embedding_model(self.map_to_input_embeddings(x))
         if self.deltas:
-            out = self.out_manifold.retr(out, self.out_manifold.rgrad(out.detach(), self.map_to_deltas(x)))
+            out = self.out_manifold.retr(out, self.out_manifold.rgrad(out.detach(),
+                                                                      self.map_to_deltas(x)))
         return out
 
     def forward_featurize(self, feature):
@@ -388,18 +429,24 @@ class FeaturizedModelEmbedding(nn.Module):
             in_tensor = in_tensor.to(self.input_embedding.weight.device)
             return self.forward(in_tensor)
 
-        featurized = torch.as_tensor([feature], dtype=self.input_embedding.weight.dtype, device=self.input_embedding.weight.device)
+        featurized = torch.as_tensor([feature], dtype=self.input_embedding.weight.dtype,
+                                     device=self.input_embedding.weight.device)
         return self.embedding_model(featurized.to(self.index_map.device))
 
     def map_to_input_embeddings(self, x):
         if self.additional_embeddings is not None:
-            return torch.where(self.index_map[x].unsqueeze(-1) > -1, self.input_embedding(self.index_map[x].clamp(min=0).to('cpu')).to(self.index_map.device), self.additional_embeddings(self.additional_index_map[x].clamp(min=0)))
+            return torch.where(self.index_map[x].unsqueeze(-1) > -1,
+                               self.input_embedding(self.index_map[x].clamp(min=0).to('cpu')).to(
+                                   self.index_map.device), self.additional_embeddings(
+                    self.additional_index_map[x].clamp(min=0)))
         else:
             return self.input_embedding(x.to('cpu')).to(self.index_map.device)
 
     def map_to_deltas(self, x):
         if self.additional_deltas is not None:
-            return torch.where(self.index_map[x].unsqueeze(-1) > -1, self.main_deltas(self.index_map[x].clamp(min=0)), self.additional_deltas(self.additional_index_map[x].clamp(min=0)))
+            return torch.where(self.index_map[x].unsqueeze(-1) > -1,
+                               self.main_deltas(self.index_map[x].clamp(min=0)),
+                               self.additional_deltas(self.additional_index_map[x].clamp(min=0)))
         else:
             return self.main_deltas(x)
 
@@ -407,7 +454,7 @@ class FeaturizedModelEmbedding(nn.Module):
         out = super().to(*param, **params)
         self.input_embedding.to('cpu')
         return out
-    
+
     def get_embedding_matrix_input(self, num_blocks=50):
         block_size = ceil(self.input_embedding.weight.data.size(0) / num_blocks)
         out_blocks = []
@@ -415,7 +462,8 @@ class FeaturizedModelEmbedding(nn.Module):
         for i in tqdm(range(num_blocks)):
             start_index = i * block_size
             end_index = min((i + 1) * block_size, self.input_embedding.weight.data.size(0))
-            out_blocks.append(self.embedding_model(self.input_embedding.weight.data[start_index:end_index]).cpu())
+            out_blocks.append(
+                self.embedding_model(self.input_embedding.weight.data[start_index:end_index]).cpu())
         out = torch.cat(out_blocks)
         return out
 
@@ -426,7 +474,8 @@ class FeaturizedModelEmbedding(nn.Module):
         for i in tqdm(range(num_blocks)):
             start_index = i * block_size
             end_index = min((i + 1) * block_size, self.index_map.size(0))
-            out_blocks.append(self.forward(torch.arange(start_index, end_index, dtype=torch.long, device=self.index_map.device)).cpu())
+            out_blocks.append(self.forward(torch.arange(start_index, end_index, dtype=torch.long,
+                                                        device=self.index_map.device)).cpu())
         out = torch.cat(out_blocks)
         return out
 
@@ -445,23 +494,28 @@ def get_cn_vector_featurizer(data_file):
 
     wrapper = VectorSpaceWrapper(vector_filename=data_file)
     wrapper.load()
+
     def cn_featurize(word):
         if word.startswith("/c/"):
             vec = wrapper.get_vector(word)
             oov = np.linalg.norm(vec) > 0
-            return vec, oov 
+            return vec, oov
         else:
             uri = standardized_uri("en", word)
             return wrapper.get_vector(uri)
+
     return cn_featurize, wrapper.frame.shape[-1]
 
 
 def get_canonical_glove_sentence_featurizer():
     embedder = GloveSentenceEmbedder.canonical()
-    return lambda sent : embedder.embed(SimpleSentence.from_text(sent), l2_normalize=False), embedder.dim
+    return lambda sent: embedder.embed(SimpleSentence.from_text(sent),
+                                       l2_normalize=False), embedder.dim
+
 
 def get_canonical_glove_word_featurizer():
     glove = Glove.canonical()
+
     def get_glove_or_none(string):
         idx = glove.lookup_word(string.lower())
         if idx >= glove.token_mapper.mapped_output_size():
@@ -472,7 +526,11 @@ def get_canonical_glove_word_featurizer():
 
     return lambda w: get_glove_or_none(w), glove.embedding_dim
 
-def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=torch.float, device=None, verbose=True, vector_file="data/cn_w2v_glove_features_main_additional_filtered.tch", gen_data=False):
+
+def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=torch.float,
+                             device=None, verbose=True,
+                             vector_file="data/cn_w2v_glove_features_main_additional_filtered.tch",
+                             gen_data=False):
     embeddings_list = np.empty((len(features), featurizer_dim))
     additional_embeddings_list = np.empty((len(features), featurizer_dim))
     index_map = np.empty((len(features)), dtype=np.int64)
@@ -482,13 +540,14 @@ def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=t
     if not gen_data:
         raw_data = load(vector_file)
         embedding = Embedding.from_pretrained(torch.as_tensor(raw_data["main"]["weight"]).to("cpu"))
-        additional_embedding = Embedding.from_pretrained(torch.as_tensor(raw_data["additional"]["weight"]).to(device))
+        additional_embedding = Embedding.from_pretrained(
+            torch.as_tensor(raw_data["additional"]["weight"]).to(device))
         index_map = raw_data["index_map"].to(device)
 
-        return embedding, index_map, additional_embedding 
+        return embedding, index_map, additional_embedding
     else:
         if verbose:
-            print("Processing features of dataset...") 
+            print("Processing features of dataset...")
             iterator = tqdm(iterator)
         for i in iterator:
             featurized, oov = featurizer(features[i])
@@ -504,9 +563,12 @@ def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=t
         embeddings_list = embeddings_list[0:count]
         additional_embeddings_list = additional_embeddings_list[0:neg_count]
 
-        embedding = Embedding.from_pretrained(torch.as_tensor(np.array(embeddings_list), dtype=dtype, device=device))
+        embedding = Embedding.from_pretrained(
+            torch.as_tensor(np.array(embeddings_list), dtype=dtype, device=device))
         index_map = torch.as_tensor(index_map, dtype=torch.long, device=device)
-        additional_embedding = Embedding.from_pretrained(torch.as_tensor(np.array(additional_embeddings_list), dtype=dtype, device=device), sparse=True)
+        additional_embedding = Embedding.from_pretrained(
+            torch.as_tensor(np.array(additional_embeddings_list), dtype=dtype, device=device),
+            sparse=True)
 
         raw_data = {
             "main": embedding.state_dict(),
@@ -516,5 +578,4 @@ def get_featurized_embedding(features: List, featurizer, featurizer_dim, dtype=t
 
         save_data(vector_file, raw_data)
 
-        return embedding, index_map, additional_embedding 
-
+        return embedding, index_map, additional_embedding

@@ -1,8 +1,10 @@
-from . import CoreNLP_pb2
-from typing import Sequence, List, Any, Union, Tuple
-from .lazy import lazy
-import re
 import bisect
+import re
+from typing import Sequence, List, Tuple
+
+from . import CoreNLP_pb2
+from .lazy import lazy
+
 
 def _try_begin_chars(tokens, text, prev_end):
     best_token, best_offset = None, len(text) + 1
@@ -51,8 +53,10 @@ class SimpleToken:
 
     @classmethod
     def from_proto(cls, proto: CoreNLP_pb2.Token, sentence_index=0, token_index=0) -> 'SimpleToken':
-        return cls(pos=proto.pos, original_text=proto.originalText, lemma=proto.lemma, ner=proto.ner,
-                   before=proto.before, after=proto.after, sentence_index=sentence_index, token_index=token_index,
+        return cls(pos=proto.pos, original_text=proto.originalText, lemma=proto.lemma,
+                   ner=proto.ner,
+                   before=proto.before, after=proto.after, sentence_index=sentence_index,
+                   token_index=token_index,
                    begin_char=proto.beginChar)
 
     def fill_proto(self, proto: CoreNLP_pb2.Token):
@@ -239,7 +243,8 @@ class SimpleSentence:
 
     @classmethod
     def from_text(
-            cls, text: str, sentence_index: int = 0, token_offset: int = 0, character_offset: int = 0
+            cls, text: str, sentence_index: int = 0, token_offset: int = 0,
+            character_offset: int = 0
     ) -> 'SimpleSentence':
         """
         Creates a SimpleSentence given a string of text where tokens are separated by whitespace. Lemmas default
@@ -258,11 +263,13 @@ class SimpleSentence:
             curr_token = match.group()
             begin_char = match.start()
             before = text[prev_end:begin_char]
-            after = text[match.end():matches[i + 1].start()] if i + 1 < len(matches) else text[match.end():]
+            after = text[match.end():matches[i + 1].start()] if i + 1 < len(matches) else text[
+                                                                                          match.end():]
             prev_end = match.end()
             tokens.append(
                 SimpleToken(
-                    pos='', original_text=curr_token, lemma=curr_token, ner='O', before=before, after=after,
+                    pos='', original_text=curr_token, lemma=curr_token, ner='O', before=before,
+                    after=after,
                     sentence_index=sentence_index, token_index=token_offset + i,
                     begin_char=begin_char + character_offset
                 )
@@ -325,8 +332,9 @@ class SimpleSentence:
 
             begin_char = text.find(token, prev_end)
             if begin_char < 0:
-                print(f"I could not find the exact token '{token}' so I am going to try some rewrites."
-                     " If you value your life, please give me honest-to-god original_texts")
+                print(
+                    f"I could not find the exact token '{token}' so I am going to try some rewrites."
+                    " If you value your life, please give me honest-to-god original_texts")
 
                 # CoreNLP can add terminal '.' some times.
                 if token == "." and prev_end == len(text):
@@ -337,7 +345,8 @@ class SimpleSentence:
                 # These are ambiguous maps so choose the closest one. GOD DAMN YOU.
                 choices = [token] + \
                           [token.replace(char, choice)
-                           for char, choices in SPECIAL_TOKENS for choice in choices if char in token]
+                           for char, choices in SPECIAL_TOKENS for choice in choices if
+                           char in token]
 
                 token, begin_char = _try_begin_chars(choices, text, prev_end)
 
@@ -352,7 +361,8 @@ class SimpleSentence:
             begin_char = token_beginnings[idx]
             before = text[prev_end: begin_char]
             prev_end = begin_char + len(token)
-            after = text[prev_end:token_beginnings[idx + 1]] if idx + 1 < len(token_strings) else text[prev_end:]
+            after = text[prev_end:token_beginnings[idx + 1]] if idx + 1 < len(
+                token_strings) else text[prev_end:]
 
             tokens.append(
                 SimpleToken(

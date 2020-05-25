@@ -1,16 +1,7 @@
-from collections import defaultdict as ddict
-import pandas
-import numpy as np
-from numpy.random import choice
-import torch as th
-from torch import nn
-from torch.utils.data import Dataset as DS
-from sklearn.metrics import average_precision_score
-from multiprocessing.pool import ThreadPool
-from functools import partial
 import h5py
-from tqdm import tqdm
-import random
+import numpy as np
+import pandas
+
 
 def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
     if format == 'hdf5':
@@ -26,7 +17,7 @@ def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
         df = pandas.read_csv(path, usecols=['id1', 'id2', 'weight'], engine='c')
 
         if symmetrize:
-            rev = df.copy().rename(columns={'id1' : 'id2', 'id2' : 'id1'})
+            rev = df.copy().rename(columns={'id1': 'id2', 'id2': 'id1'})
             df = pandas.concat([df, rev])
 
         idmap = {}
@@ -37,6 +28,7 @@ def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
                 idmap[id] = len(idlist)
                 idlist.append(id)
             return idmap[id]
+
         df.loc[:, 'id1'] = df['id1'].apply(convert)
         df.loc[:, 'id2'] = df['id2'].apply(convert)
 
@@ -50,8 +42,8 @@ def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
         neighbors = groups['id2'].values
         weights = groups['weight'].values
         return {
-            'ids' : ids.astype('int'),
-            'offsets' : offsets.astype('int'),
+            'ids': ids.astype('int'),
+            'offsets': offsets.astype('int'),
             'neighbors': neighbors.astype('int'),
             'weights': weights.astype('float'),
             'objects': np.array(idlist)
@@ -59,7 +51,8 @@ def load_adjacency_matrix(path, format='hdf5', symmetrize=False):
     else:
         raise RuntimeError(f'Unsupported file format {format}')
 
-def load_csv_edge_list(path: str, symmetrize: bool=False, delimiter:str =","):
+
+def load_csv_edge_list(path: str, symmetrize: bool = False, delimiter: str = ","):
     """
     Loads a graph from a csv file with headers id1, id2, weight
 
@@ -83,7 +76,7 @@ def load_csv_edge_list(path: str, symmetrize: bool=False, delimiter:str =","):
 
     df.dropna(inplace=True)
     if symmetrize:
-        rev = df.copy().rename(columns={'id1' : 'id2', 'id2' : 'id1'})
+        rev = df.copy().rename(columns={'id1': 'id2', 'id2': 'id1'})
         df = pandas.concat([df, rev])
     idx, objects = pandas.factorize(df[['id1', 'id2']].values.reshape(-1))
     idx = idx.reshape(-1, 2).astype('int')

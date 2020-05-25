@@ -1,5 +1,7 @@
-from .config.config_loader import get_config
 import torch
+
+from .config.config_loader import get_config
+
 
 def get_device():
     """
@@ -12,6 +14,3 @@ def get_device():
     gpu = general_config.gpu
     device = torch.device(f'cuda:{gpu}' if gpu >= 0 else 'cpu')
     return device
-
-
-    

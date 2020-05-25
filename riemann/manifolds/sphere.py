@@ -1,13 +1,15 @@
-from .manifold import RiemannianManifold
 import torch
+
+from .manifold import RiemannianManifold
 
 # Determines when to use approximations when dividing by small values is a possibility
 EPSILON = 1e-4
 
+
 class GradClippedACos(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x):
-        x = x.clamp(-1 + EPSILON,  1 - EPSILON)
+        x = x.clamp(-1 + EPSILON, 1 - EPSILON)
         ctx.save_for_backward(x)
         dtype = x.dtype
         return torch.acos(x)
@@ -18,8 +20,10 @@ class GradClippedACos(torch.autograd.Function):
         grad = - grad_output / ((1 - x ** 2) ** 0.5)
         return grad
 
+
 def acos(x):
     return GradClippedACos.apply(x)
+
 
 class SphericalManifold(RiemannianManifold):
     '''
@@ -41,7 +45,7 @@ class SphericalManifold(RiemannianManifold):
         else:
             norm = x.norm(dim=-1, keepdim=True)
             out = x / norm
-            out[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1/2)
+            out[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1 / 2)
             return out
 
     def proj_(self, x, indices=None):
@@ -52,7 +56,7 @@ class SphericalManifold(RiemannianManifold):
         else:
             norm = x.norm(dim=-1, keepdim=True)
             x.div_(norm)
-            x[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1/2)
+            x[norm.squeeze(-1) == 0] = (1 / x.size()[-1]) ** (1 / 2)
             return x
 
     def retr(self, x, u, indices=None):
@@ -71,7 +75,7 @@ class SphericalManifold(RiemannianManifold):
 
     def exp(self, x, u):
         # Ensure u is in tangent space
-        #u = u - (x * u).sum(dim=-1, keepdim=True) * x
+        # u = u - (x * u).sum(dim=-1, keepdim=True) * x
 
         norm_u = u.norm(dim=-1, keepdim=True)
         exp = x * torch.cos(norm_u) + u * torch.sin(norm_u) / norm_u
@@ -111,7 +115,8 @@ class SphericalManifold(RiemannianManifold):
             tangent_matrix.unsqueeze_(0)
         x_shape = x.size()
         x_reduced = x.view(-1, x.size()[-1])
-        ortho_proj = torch.bmm(x_reduced.unsqueeze(-1), x_reduced.unsqueeze(-2)).view(*x.size(), x.size()[-1])
+        ortho_proj = torch.bmm(x_reduced.unsqueeze(-1), x_reduced.unsqueeze(-2)).view(*x.size(),
+                                                                                      x.size()[-1])
         return tangent_matrix.expand(*x.size(), x.size()[-1]) - ortho_proj
 
     def get_metric_tensor(self, x):
@@ -119,5 +124,6 @@ class SphericalManifold(RiemannianManifold):
         for i in range(len(x.size()) - 1):
             metric.unsqueeze_(0)
         return metric.expand(*x.size(), x.size()[-1])
+
 
 RiemannianManifold.register_manifold(SphericalManifold)

@@ -1,6 +1,8 @@
 import abc
 from typing import Dict
+
 import torch
+
 
 class DataBatch(abc.ABC):
     """
@@ -34,16 +36,14 @@ class BatchTask(abc.ABC):
     def process_batch(self, data_batch: DataBatch):
         raise NotImplementedError
 
+
 class FunctionBatchTask(BatchTask):
     """
     Basic batch task that just executes a function
     """
+
     def __init__(self, function):
         self.function = function
 
     def process_batch(data_batch: DataBatch):
         self.function(data_batch)
-
-    
-
-
