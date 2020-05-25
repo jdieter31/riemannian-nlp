@@ -67,7 +67,7 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
     pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
-    if scale != None:
+    if scale is not None:
         pullback_metric = scale * pullback_metric
 
     if isometric:

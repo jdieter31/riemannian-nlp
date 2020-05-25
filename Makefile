@@ -3,6 +3,7 @@
 
 # Get the path to graph_tool
 GRAPH_TOOL:= $(dir $(shell python3 -c "import graph_tool; print(graph_tool.__file__)" 2> /dev/null))
+$(info using ${GRAPH_TOOL})
 ifeq (${GRAPH_TOOL},)
 $(error "Could not find an installation of `graph_tool`. \
 Make sure you are running `make` outside of a virtual environment and \
