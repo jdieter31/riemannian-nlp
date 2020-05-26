@@ -35,7 +35,8 @@ def train(args):
     train_schedule.train()
 
     # Save the model
-    model.to_file("test.zip")
+    if args.model_file:
+        model.to_file(args.model_file)
 
 
 def plot_transformation(args):
@@ -57,7 +58,9 @@ if __name__ == "__main__":
     command_parser.add_argument('-u', '--config_updates', type=str, default="",
                                 help="Extra configuration to inject into config dict")
     command_parser.add_argument('-f', '--config_file', type=str, default=None,
-                        help="File to load config from")
+                                help="File to load config from")
+    command_parser.add_argument('-m', '--model_file', type=str, default=None,
+                                help="Path to save model at")
 
     command_parser.set_defaults(func=train)
 
