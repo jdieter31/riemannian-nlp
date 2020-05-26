@@ -13,6 +13,7 @@ from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model, torch
 from riemann.data.data_loader import get_training_data
+from riemann.visualize import plot
 
 
 def train(args):
@@ -37,34 +38,33 @@ def train(args):
     model.to_file("test.zip")
 
 
-def transform_manifold(args):
+def plot_transformation(args):
     """
-    Transform the manifold containing a given set of coordinates to one that
+    Plots the manifold transformation learned by the given model.
     better represents the distances on a given graph.
     """
-    # Initialize Config
-    initialize_config(args.config_file,
-                      load_config=(args.config_file is not None),
-                      config_updates=ConfigDictParser.parse(args.config_updates))
-    print(json.dumps(get_config().as_json(), indent=2))
-    model = GraphEmbedder.from_file("test.zip")
+    model = GraphEmbedder.from_file(args.model_file)
     # Run plot with the data
+    fig = plot(model)
+    fig.show()
 
 
 # noinspection DuplicatedCode
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-u', '--config_updates', type=str, default="",
-                        help="Extra configuration to inject into config dict")
-    parser.add_argument('-f', '--config_file', type=str, default=None,
-                        help="File to load config from")
-
     subparsers = parser.add_subparsers()
     command_parser = subparsers.add_parser('train', help=train.__doc__)
+    command_parser.add_argument('-u', '--config_updates', type=str, default="",
+                                help="Extra configuration to inject into config dict")
+    command_parser.add_argument('-f', '--config_file', type=str, default=None,
+                        help="File to load config from")
+
     command_parser.set_defaults(func=train)
 
-    command_parser = subparsers.add_parser('transform', help=transform_manifold.__doc__)
-    command_parser.set_defaults(func=transform_manifold)
+    command_parser = subparsers.add_parser('plot', help=plot_transformation.__doc__)
+    command_parser.add_argument('model_file', type=str,
+                                help="File to load model from")
+    command_parser.set_defaults(func=plot_transformation)
 
     ARGS = parser.parse_args()
     if ARGS.func is None:

@@ -2,12 +2,13 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.figure import Figure
 
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from .manifolds import SphericalManifold
 
 
-def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder):
+def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
     """
     Visualizes a feature-based embedding of graph data from a manifold into
     another
