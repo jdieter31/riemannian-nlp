@@ -25,7 +25,7 @@ cd "${DIR}/.."
 # A list of packages to filter from 'pip freeze'. These packages are
 # require a link to be # installed (embedding_evaluation) that will be
 # explicitly provided in EXTRAS.
-BLACKLIST="embedding_evaluation riemannian-nlp torch faiss";
+BLACKLIST="embedding_evaluation riemannian-nlp torch faiss spell";
 
 # Additional pacakges to add to the Conda environment we're building
 # We have to specify the exact revision and egg here.

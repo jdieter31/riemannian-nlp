@@ -136,7 +136,6 @@ dependencies:
     - shortuuid==1.0.1
     - six==1.14.0
     - smmap2==2.0.5
-    - spell==0.37.2
     - spinners==0.0.24
     - subprocess32==3.5.4
     - svgwrite==1.4
