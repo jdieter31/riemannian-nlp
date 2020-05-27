@@ -9,21 +9,11 @@ from math import ceil
 
 import numpy as np
 import torch
-from libc.math cimport
-
-pow
-from libc.stdlib cimport
-
-RAND_MAX
-from libcpp cimport
-
-bool
-from libcpp.unordered_map cimport
-
-unordered_map
-from libcpp.unordered_set cimport
-
-unordered_set
+from libc.math cimport pow
+from libc.stdlib cimport RAND_MAX
+from libcpp cimport bool
+from libcpp.unordered_map cimport unordered_map
+from libcpp.unordered_set cimport unordered_set
 
 from .graph_data_batch import GraphDataBatch
 

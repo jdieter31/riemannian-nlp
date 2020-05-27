@@ -8,7 +8,7 @@
 #
 # The script respects the following environment variables:
 # - SPELL_MACHINE: specifies which machine type will be used. By
-#   default, this is 'k80' (a standard GPU machine).
+#   default, this is 't4' (a standard GPU machine).
 # - SPELL_MOUNTS: specifies which buckets will be mounted in the Spell
 #   image. Defaults to '-m public-data/riemann:/spell/riemannian-nlp/data -m
 #   resources:/spell/riemannian-nlp/resources'
@@ -65,7 +65,7 @@ fi;
 make -C ${ROOT} .spell-conda.yml
 
 exec spell run \
-  -t ${SPELL_MACHINE:-k80} \
+  -t ${SPELL_MACHINE:-t4} \
   ${SPELL_MOUNTS:--m public_data/riemann:$SPELL_ROOT/data -m resources:$SPELL_ROOT/resources} \
   ${apt_dependencies} \
   --conda-file ${ROOT}/.spell-conda.yml \
