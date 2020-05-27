@@ -53,8 +53,10 @@ apt_dependencies='--apt libomp-dev --apt libgdk3.0-cil'
 # ${args[@]@Q} to make sure arguments are correctly parsed on the
 # remote.
 args=("$@");
-# Replace STATE_DIR WITH SPELL_ROOT
-args=("${args[@]//STATE_DIR/$SPELL_ROOT\/state}");
+# Replace STATE_DIR WITH $SPELL_ROOT/state
+args=("${args[@]//STATE_DIR/SPELL_ROOT\/state}");
+# Replace SPELL_ROOT WITH $SPELL_ROOT
+args=("${args[@]//SPELL_ROOT/$SPELL_ROOT}");
 
 if [ -n ${SPELL_DEBUG:-} ]; then
   $ROOT/bin/arglist.sh "${args[@]@Q}";
