@@ -41,7 +41,7 @@ poetry.lock: pyproject.toml
 	poetry update
 
 # Create a conda environment that matches our pip environment
-.spell-conda.yml: pyproject.toml poetry.lock | $(PYTHONROOT)/bin/python3
+.spell-conda.yml: #pyproject.toml poetry.lock | $(PYTHONROOT)/bin/python3
 	bin/build_spell_env.sh $@
 
 
