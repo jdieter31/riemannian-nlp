@@ -47,7 +47,7 @@ fi;
 SPELL_ROOT='/spell/riemannian-nlp'
 
 # FAISS needs libomp to run.
-apt_dependencies='--apt libomp-dev'
+apt_dependencies='--apt libomp-dev --apt libgdk3.0-cil'
 
 # Convert args into an array: this is use with quote escaping below:
 # ${args[@]@Q} to make sure arguments are correctly parsed on the
