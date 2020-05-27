@@ -88,6 +88,7 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     log_eig = torch.log(eigenvalues)
     # Filter potential nans
     log_eig[log_eig != log_eig] = 0
+    log_eig[log_eig == float('-inf')] = 0
     return (log_eig * log_eig).sum(dim=-1)
 
 def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor,
@@ -97,6 +98,9 @@ def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor,
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
     eigenvalues = relu(eigenvalues)
     log_eig = torch.log(eigenvalues)
+    # Filter potential nans
+    log_eig[log_eig != log_eig] = 0
+    log_eig[log_eig == float('-inf')] = 0
     iso_loss = (log_eig * log_eig).sum(dim=-1)
 
     log_det_diff = torch.logdet(matrix_a) - torch.logdet(matrix_b)

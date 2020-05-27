@@ -16,4 +16,4 @@ class LossConfig(ConfigDict):
             default_params=[-1.0, 1.0] 
         )
     conformal: bool = True
-    max_distortion: float = 4
+    max_distortion: float = 8

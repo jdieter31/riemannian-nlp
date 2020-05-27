@@ -54,6 +54,7 @@ cdef class GraphDataBatchIterator:
     cdef long[:] manifold_neighbors_indices
     cdef long[:] perm
     cdef long[:] non_empty_indices
+    cdef unordered_set[long] empty_vertices
     cdef long[:] non_empty_indices_train
     cdef long[:,:] graph_neighbor_permutations
     cdef unordered_map[int, int] graph_neighbor_difs
@@ -62,7 +63,8 @@ cdef class GraphDataBatchIterator:
     def __cinit__(self,
                   neighbor_data,
                   graph_sampling_config,
-                  train_neighbor_data=None):
+                  train_neighbor_data=None,
+                 ):
         """
         Params:
             neighbor_data (Dict): neighbor data dictionary as produced from a
@@ -75,13 +77,6 @@ cdef class GraphDataBatchIterator:
         """
 
         self.N = neighbor_data["N"]
-        self.n_graph_neighbors = min(self.N - 1,
-                                     graph_sampling_config.n_graph_neighbors)
-        self.n_manifold_neighbors = min(self.N - 1 - self.n_graph_neighbors,
-                                        graph_sampling_config.n_manifold_neighbors)
-        self.n_rand_neighbors = min(self.N - 1 - self.n_graph_neighbors -
-                                    self.n_manifold_neighbors,
-                                    graph_sampling_config.n_rand_neighbors)
         self.batch_size = min(graph_sampling_config.batch_size, self.N)
         self.queue = queue.Queue(maxsize=graph_sampling_config.num_workers)
         self.num_workers = graph_sampling_config.num_workers
@@ -99,8 +94,22 @@ cdef class GraphDataBatchIterator:
         self.get_1d_index_list(all_graph_neighbors,
                                self.graph_neighbors_indices)
         
+
+        self.empty_vertices = unordered_set[long]()
         if train_neighbor_data is not None:
             self.is_eval = True 
+            self.n_graph_neighbors = min(self.N - 1,
+                                        graph_sampling_config.n_graph_neighbors)
+
+            max_train_neighbors = max([graph_neighbors.shape[0] for graph_neighbors in train_neighbor_data["all_graph_neighbors"]])
+                  
+            max_neighbors = max([0, max([graph_neighbors.shape[0] for  graph_neighbors in all_graph_neighbors]) - self.n_graph_neighbors])
+            self.n_manifold_neighbors = min(self.N - 1 - self.n_graph_neighbors - max_neighbors - max_train_neighbors,
+                                            graph_sampling_config.n_manifold_neighbors)
+
+            self.n_rand_neighbors = min(self.N - 1 - self.n_graph_neighbors -
+                                        self.n_manifold_neighbors - max_train_neighbors - max_neighbors,
+                                        graph_sampling_config.n_rand_neighbors)
 
             self.non_empty_indices_train = \
                 train_neighbor_data["non_empty_vertices"]
@@ -118,6 +127,21 @@ cdef class GraphDataBatchIterator:
                                    self.train_graph_neighbors_indices)
         else:
             self.is_eval = False
+
+
+            self.n_graph_neighbors = min(self.N_non_trivial - 1,
+                                        graph_sampling_config.n_graph_neighbors)
+
+            max_neighbors = max([0, max([graph_neighbors.shape[0] for  graph_neighbors in all_graph_neighbors]) - self.n_graph_neighbors])
+            self.n_manifold_neighbors = min(self.N_non_trivial - 1 - self.n_graph_neighbors - max_neighbors,
+                                            graph_sampling_config.n_manifold_neighbors)
+            self.n_rand_neighbors = min(self.N_non_trivial - 1 - self.n_graph_neighbors -
+                                        self.n_manifold_neighbors - max_neighbors,
+                                        graph_sampling_config.n_rand_neighbors)
+            k = 0
+            while k < neighbor_data["empty_vertices"].shape[0]:
+                self.empty_vertices.insert(neighbor_data["empty_vertices"][k])
+                k = k + 1
     
     def get_init_size_1d_memview_numpy_list(self, numpy_list):
         list_size = sum(array.shape[0] for array in numpy_list)
@@ -271,7 +295,6 @@ cdef class GraphDataBatchIterator:
             vertices[j, 0] = vertex
             neighbors_index = self.graph_neighbors_indices[self.perm[i + j]]
             neighbors_length = self.graph_neighbors_indices[self.perm[i + j] + 1] - neighbors_index
-            k = 0
 
             extra_rand_samples = 0
             if neighbors_length < self.n_graph_neighbors:
@@ -279,15 +302,17 @@ cdef class GraphDataBatchIterator:
             total_graph_samples = self.n_graph_neighbors - extra_rand_samples
             excluded_samples = unordered_set[long]()
             excluded_samples.insert(vertex)
+
             k = 0
             while k < neighbors_length:
                 excluded_samples.insert(self.graph_neighbors[neighbors_index + k])
                 k = k + 1
             if self.is_eval:
-                train_neighbors_index = self.train_graph_neighbors[self.perm[i + j]]
+                train_neighbors_index = self.train_graph_neighbors_indices[self.perm[i + j]]
                 train_neighbors_length = self.train_graph_neighbors_indices[self.perm[i + j] + 1] - train_neighbors_index
                 k = 0
-                while k < neighbors_length:
+
+                while k < train_neighbors_length:
                     excluded_samples.insert(self.train_graph_neighbors[train_neighbors_index + k])
                     k = k + 1
             k = 1
@@ -309,7 +334,8 @@ cdef class GraphDataBatchIterator:
                 l = 0
                 while k < self.n_manifold_neighbors and l < neighbors_length:
                     new_vertex = self.manifold_neighbors[neighbors_index + l]
-                    if excluded_samples.find(new_vertex) == excluded_samples.end():
+                    if excluded_samples.find(new_vertex) == excluded_samples.end() and \
+                       self.empty_vertices.find(new_vertex) == self.empty_vertices.end():
                         vertices[j, k + current_index] = new_vertex
                         k = k + 1
                         excluded_samples.insert(new_vertex)
@@ -319,7 +345,12 @@ cdef class GraphDataBatchIterator:
                     extra_rand_samples = extra_rand_samples + self.n_manifold_neighbors - k
             k = 0
             while k < self.n_rand_neighbors + extra_rand_samples:
-                new_vertex = <long>(<double>rand_r(&seed) / <double>RAND_MAX * self.N)
+                if self.is_eval:
+                    new_vertex = <long>(<double>rand_r(&seed) / <double>RAND_MAX * self.N)
+                else:
+                    new_vertex = self.non_empty_indices[<long>(<double>rand_r(&seed) / <double>RAND_MAX * self.N_non_trivial)]
+
+
                 if excluded_samples.find(new_vertex) == excluded_samples.end():
                     vertices[j, k + current_index] = new_vertex
                     k = k + 1

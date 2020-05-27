@@ -7,7 +7,7 @@ class ManifoldConfig(ConfigDict):
     ConfigDict to specify a manifold and its properties
     """
     name: str = "EuclideanManifold"
-    params: Dict = {}
+    params: dict = {}
 
     def get_manifold_instance(self) -> RiemannianManifold:
         """

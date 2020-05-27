@@ -10,9 +10,9 @@ class DataConfig(ConfigDict):
     """
     Configuration for data component
     """
-    dataset_name: str = "nouns"
+    dataset_name: str = "mammals"
     path: str = os.path.join(root_path, 
-            "data/nouns.csv")
+            "data/mammals.csv")
     graph_data_type: str = "edge"
     graph_data_format: str = "hdf5"
     symmetrize: bool = False

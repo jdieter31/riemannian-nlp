@@ -79,6 +79,7 @@ class GraphDataset:
         all_graph_neighbors = []
         all_graph_weights = []
         non_empty_vertices = []
+        empty_vertices = []
         if verbose:
             iterator = tqdm(range(self.n_nodes()),
                             desc="Generating Neighbor Data", dynamic_ncols=True)
@@ -103,15 +104,19 @@ class GraphDataset:
                     all_graph_weights.append(
                         np.concatenate([in_edges[:, 2], out_edges[:, 2]]
                                       ).astype(np.float32))
+            else:
+                empty_vertices.append(i)
 
         graph_neighbors = np.concatenate(all_graph_neighbors)
         graph_neighbor_weights = np.concatenate(all_graph_weights)
         non_empty_vertices = np.array(non_empty_vertices, dtype=np.int64)
+        empty_vertices = np.array(empty_vertices, dtype=np.int64)
 
         return {
             "all_graph_neighbors": all_graph_neighbors,
             "all_graph_weights": all_graph_weights,
             "non_empty_vertices": non_empty_vertices,
+            "empty_vertices": empty_vertices,
             "N": self.n_nodes()
         }
 
