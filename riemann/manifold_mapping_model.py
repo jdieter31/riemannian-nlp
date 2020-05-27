@@ -1,17 +1,20 @@
+from typing import Callable, Optional
+
+import torch
+from torch import nn
+
 from .featurizers.graph_text_featurizer import GraphObjectIDFeaturizer
 from .featurizers.text_featurizer import TextFeaturizer
-from torch import nn
-from typing import Callable, Optional
 from .manifolds import RiemannianManifold
-import torch
+
 
 class ManifoldMappingModel(GraphObjectIDFeaturizer, TextFeaturizer):
-    
+
     def __init__(self, graph_featurizer: GraphObjectIDFeaturizer,
                  manifold_mapping: nn.Module,
                  out_manifold: RiemannianManifold,
-                 text_featurizer: TextFeaturizer=None,
-                 text_to_node_func: Callable[[str], Optional[int]]=None):
+                 text_featurizer: TextFeaturizer = None,
+                 text_to_node_func: Callable[[str], Optional[int]] = None):
         """
         Params:
             graph_featurizer (GraphObjectIDFeaturizer): Produces initial
@@ -43,5 +46,3 @@ class ManifoldMappingModel(GraphObjectIDFeaturizer, TextFeaturizer):
 
     def get_manifold(self) -> RiemannianManifold:
         return self.out_manifold
-
-

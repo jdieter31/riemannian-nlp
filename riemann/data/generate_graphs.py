@@ -1,5 +1,6 @@
 import argparse
 
+
 def run(args):
     vertices = []
     edges = []
@@ -15,7 +16,7 @@ def run(args):
         # Make a copy to avoid infinite loop
         for v in list(vertices):
             insert_tree(vertices, v, edges, args.depth, args.branching)
-    
+
     if args.type == "tree":
         insert_tree(vertices, 0, edges, args.depth, args.branching)
 
@@ -27,6 +28,7 @@ def save_to_csv(file_name, edges):
         f.write("id1\tid2\tweight\n")
         for edge in edges:
             f.write(f"node{edge[0]}\tnode{edge[1]}\t1\n")
+
 
 def insert_tree(vertices, root_vertex, edges, depth, branching):
     if depth == 0:
@@ -48,9 +50,9 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--type', type=str, default="tree", help= \
         "Type of graph to generate options are cycle, tree, treecycle")
     parser.add_argument('-d', '--depth', type=int, default=3, help= \
-                        "Depth of trees") 
+        "Depth of trees")
     parser.add_argument('-l', '--length', type=int, default=10, help= \
-                        "Length of cycle")
+        "Length of cycle")
     parser.add_argument('-o', '--out', type=str)
     parser.set_defaults(func=run)
 

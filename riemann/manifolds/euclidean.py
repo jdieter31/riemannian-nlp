@@ -1,5 +1,7 @@
-from .manifold import RiemannianManifold
 import torch
+
+from .manifold import RiemannianManifold
+
 
 class EuclideanManifold(RiemannianManifold):
     '''
@@ -22,7 +24,7 @@ class EuclideanManifold(RiemannianManifold):
         if indices is not None:
             return x.index_add_(0, indices, u)
         return x.add_(u)
-    
+
     def exp(self, x, u):
         return x + u
 
@@ -59,5 +61,6 @@ class EuclideanManifold(RiemannianManifold):
         for i in range(len(x.size()) - 1):
             metric.unsqueeze_(0)
         return metric.expand(*x.size(), x.size()[-1])
+
 
 RiemannianManifold.register_manifold(EuclideanManifold)

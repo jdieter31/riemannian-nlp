@@ -1,10 +1,12 @@
-from ..config import ConfigDict
 import os
+
+from ..config import ConfigDict
 
 root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                          "../../..")
 
 CONFIG_NAME = "data"
+
 
 class DataConfig(ConfigDict):
     """

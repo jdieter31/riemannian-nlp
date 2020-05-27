@@ -1,11 +1,14 @@
-import torch
-from ..manifolds import RiemannianManifold
-from ..jacobian import compute_jacobian
-from torch.nn.functional import relu
 from math import log
+
+import torch
+from torch.nn.functional import relu
+
+from ..jacobian import compute_jacobian
+from ..manifolds import RiemannianManifold
 
 # Add to ensure there are no anomalous zero eigenvalues
 EPSILON = 0.0001
+
 
 def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
                   RiemannianManifold, out_manifold: RiemannianManifold,
@@ -45,16 +48,20 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
     tangent_proj_out_shape = tangent_proj_out.size()
-    tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2], tangent_proj_out_shape[-1])
+    tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2],
+                                                   tangent_proj_out_shape[-1])
     jacobian_batch = jacobian.view(-1, jacobian_shape[-2], jacobian_shape[-1])
 
     tangent_proj_in = in_manifold.tangent_proj_matrix(input_embeddings)
     proj_eigenval, proj_eigenvec = torch.symeig(tangent_proj_in, eigenvectors=True)
     first_nonzero = (proj_eigenval > 1e-3).nonzero()[0][1]
-    significant_eigenvec = proj_eigenvec.narrow(-1, first_nonzero, proj_eigenvec.size()[-1] - first_nonzero)
+    significant_eigenvec = proj_eigenvec.narrow(-1, first_nonzero,
+                                                proj_eigenvec.size()[-1] - first_nonzero)
     significant_eigenvec_shape = significant_eigenvec.size()
-    significant_eigenvec_batch = significant_eigenvec.view(-1, significant_eigenvec_shape[-2], significant_eigenvec_shape[-1])
-    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch), significant_eigenvec_batch)
+    significant_eigenvec_batch = significant_eigenvec.view(-1, significant_eigenvec_shape[-2],
+                                                           significant_eigenvec_shape[-1])
+    metric_conjugator = torch.bmm(torch.bmm(tangent_proj_out_batch, jacobian_batch),
+                                  significant_eigenvec_batch)
     metric_conjugator_t = torch.transpose(metric_conjugator, -2, -1)
     out_metric = out_manifold.get_metric_tensor(model_out)
     out_metric_shape = out_metric.size()
@@ -77,6 +84,7 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
 
     return loss
 
+
 def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     """
     Computes the Riemannian distance between two postive definite matrices
@@ -90,6 +98,7 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     log_eig[log_eig != log_eig] = 0
     log_eig[log_eig == float('-inf')] = 0
     return (log_eig * log_eig).sum(dim=-1)
+
 
 def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor,
                          max_distortion: float=None):

@@ -1,11 +1,11 @@
-from typing import Callable, List
-from torch.optim.optimizer import Optimizer
-from torch.optim import Adam
-import torch.nn as nn
-from ..config.config_loader import get_config
-from ..data.batching import BatchTask, DataBatch
+from typing import Callable
+
 import torch
 import wandb
+from torch.optim.optimizer import Optimizer
+
+from ..data.batching import BatchTask, DataBatch
+
 
 class SingleLossProcessor(BatchTask):
     """
@@ -35,7 +35,7 @@ class SingleLossProcessor(BatchTask):
             batch (DataBatch): The batch of data to be ran on
         """
         loss = self.loss(batch)
-            
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -44,5 +44,3 @@ class SingleLossProcessor(BatchTask):
                   step=self.iterations)
 
         self.iterations += 1
-
-

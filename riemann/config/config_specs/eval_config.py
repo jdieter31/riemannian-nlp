@@ -1,7 +1,7 @@
 from ..config import ConfigDict
-from ..manifold_config import ManifoldConfig
 
 CONFIG_NAME = "eval"
+
 
 class EvalConfig(ConfigDict):
     """
@@ -14,4 +14,3 @@ class EvalConfig(ConfigDict):
     link_pred_frequency: int = 20
     reconstruction_frequency: int = 20
     data_fraction: float = 1
-

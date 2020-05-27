@@ -1,11 +1,12 @@
+import os
+from typing import List
+
 from ..config import ConfigDict
 from ..manifold_config import ManifoldConfig
 from ..manifold_initialization_config import ManifoldInitializationConfig
 
-import os
-from typing import List
-
 CONFIG_NAME = "model"
+
 
 def get_latest_model(path="model/model"):
     i = 1
@@ -13,6 +14,7 @@ def get_latest_model(path="model/model"):
         i += 1
     path += f"{i}.tch"
     return path
+
 
 class ModelConfig(ConfigDict):
     """
@@ -26,7 +28,7 @@ class ModelConfig(ConfigDict):
     sparse: bool = True
     double_precision: bool = False
     manifold_initialization: ManifoldInitializationConfig = \
-            ManifoldInitializationConfig()
+        ManifoldInitializationConfig()
     nonlinearity: str = "elu"
     num_poles: int = 1
     train_isometry: bool = True

@@ -1,15 +1,19 @@
 import csv
+import os
 from collections import Counter
 from typing import Mapping, Sequence, List, Dict, Tuple
-import os
+
 from .core_nlp import SimpleSentence
 
-term_freq_path = os.path.dirname(os.path.realpath(__file__)) + '/../../resources/google_unigram_counts.tsv'
+term_freq_path = os.path.dirname(
+    os.path.realpath(__file__)) + '/../../resources/google_unigram_counts.tsv'
+
 
 class TermFrequencies(Mapping[str, int]):
     """
     An object that helps with all things related to the counting  / retrieving frequencies of tokens
     """
+
     def __init__(self, count_mapping: Mapping[str, int], total_count: int):
         self.total_count = total_count
         self._vocab_counts: Counter = Counter(count_mapping)

@@ -3,6 +3,7 @@ from ..manifold_config import ManifoldConfig
 
 CONFIG_NAME = "general"
 
+
 class GeneralConfig(ConfigDict):
     """
     General Configuration

@@ -3,6 +3,7 @@ from ..graph_sampling_config import GraphSamplingConfig
 
 CONFIG_NAME = "sampling"
 
+
 class SamplingConfig(ConfigDict):
     """
     Configuration for neighborhood sampling

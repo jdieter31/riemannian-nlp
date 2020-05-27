@@ -1,4 +1,5 @@
 import torch.multiprocessing as mp
+
 from .utils import ProxyWriter
 
 log_queue = None

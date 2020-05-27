@@ -1,8 +1,10 @@
-from typing import List, Sequence, MutableMapping, Dict, Tuple
-from .token_mapper import TokenMapper, HashTokenMapping
+import unicodedata
+from typing import List, Sequence, Dict, Tuple
+
 import numpy as np
 from unidecode import unidecode
-import unicodedata
+
+from .token_mapper import TokenMapper, HashTokenMapping
 
 
 class CharacterMap:
@@ -18,9 +20,9 @@ class CharacterMap:
     def __init__(
             self,
             special_chars: Sequence[str] = (),
-            num_unks: int=1,
-            zero_pad: bool=False,
-            collapse_digits: bool=False,
+            num_unks: int = 1,
+            zero_pad: bool = False,
+            collapse_digits: bool = False,
     ):
         """
         :param special_chars: Additional characters that we would like to create mappings for that are non - ascii
@@ -53,7 +55,8 @@ class CharacterMap:
                     self.char_to_idx[special_char] = len(self.idx_to_char)
                     self.idx_to_char.append(special_char)
 
-        assert num_unks > 0, "Must have at least 1 unk character. {} was passed in...".format(num_unks)
+        assert num_unks > 0, "Must have at least 1 unk character. {} was passed in...".format(
+            num_unks)
         self.token_mapper = TokenMapper([], [HashTokenMapping(num_unks)])  # just have 1 unk char
         self._token_mapper_indent = self.token_mapper.mapped_output_size()
 
@@ -110,7 +113,7 @@ class CharacterMap:
             indices.append(self.text_to_indices(token))
         return indices
 
-    def tokens_to_indices_padded(self, tokens: Sequence[str])-> Tuple[np.ndarray, np.ndarray]:
+    def tokens_to_indices_padded(self, tokens: Sequence[str]) -> Tuple[np.ndarray, np.ndarray]:
         """
         Converts a list of tokens to a padded num_words x max_word_length numpy array of indices and a mask of 1s
         and 0s of the same shape.

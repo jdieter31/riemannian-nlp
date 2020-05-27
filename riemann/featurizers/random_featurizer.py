@@ -1,6 +1,8 @@
 import numpy as np
 import torch
+
 from ..data.graph_dataset import GraphDataset
+
 
 def get_random_featurizer(graph_dataset: GraphDataset, dimension=2, grid_size=4):
     random_vectors = torch.empty((graph_dataset.n_nodes(), dimension),
@@ -34,10 +36,7 @@ def get_random_featurizer(graph_dataset: GraphDataset, dimension=2, grid_size=4)
 
     random_vectors = torch.tensor(random_vectors, dtype=torch.float, device=torch.device('cpu'))
 
-
     def featurize(object_ids, node_ids):
         return random_vectors[node_ids]
 
     return featurize
-    
-     

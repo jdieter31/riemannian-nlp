@@ -1,5 +1,7 @@
-from .config import ConfigDict
 from typing import Dict, List
+
+from .config import ConfigDict
+
 
 class ManifoldInitializationConfig(ConfigDict):
     """
@@ -7,7 +9,7 @@ class ManifoldInitializationConfig(ConfigDict):
     manifold
     """
 
-    default_init_func: str = "uniform_" 
+    default_init_func: str = "uniform_"
     default_params: List[float] = [-0.001, 0.001]
     manifold_init_funcs: Dict[str, str] = {}
     manifold_params: Dict[str, List] = {}

@@ -10,9 +10,9 @@ from zipfile import ZipFile
 
 
 class WordPiecer:
-    EOW = "</w>"    # How to pretty print EOWs
-    UNK = "<?>"     # How to pretty print unknown characters.
-    UNK_EOW = "<?></w>"     # How to pretty print unknown characters.
+    EOW = "</w>"  # How to pretty print EOWs
+    UNK = "<?>"  # How to pretty print unknown characters.
+    UNK_EOW = "<?></w>"  # How to pretty print unknown characters.
 
     def __init__(self, pieces: List[str], merges: List[Tuple[str, str]]):
         """
@@ -22,7 +22,8 @@ class WordPiecer:
         # We look up indices a lot, so interning strings is natural.
         self._pieces = [sys.intern(p) for p in pieces]
         self._indices = {p: i for i, p in enumerate(pieces)}
-        self._merges = [(self._indices[x], self._indices[y], self._indices[x + y]) for x, y in merges]
+        self._merges = [(self._indices[x], self._indices[y], self._indices[x + y]) for x, y in
+                        merges]
         self._merge_indices = {(x, y): i for i, (x, y, _) in enumerate(self._merges)}
 
         if self.UNK not in self._pieces:
@@ -51,7 +52,8 @@ class WordPiecer:
         # Find the top-ranked merge to complete:
         NONE = len(self._merges) + 1
 
-        merge_idx = min((self._merge_indices.get((indices[i], indices[i+1]), NONE) for i in range(len(indices) - 1)),
+        merge_idx = min((self._merge_indices.get((indices[i], indices[i + 1]), NONE) for i in
+                         range(len(indices) - 1)),
                         default=NONE)
 
         if merge_idx == NONE:
@@ -64,7 +66,7 @@ class WordPiecer:
             if i == len(indices) - 1:
                 break
 
-            if indices[i] == x and indices[i+1] == y:
+            if indices[i] == x and indices[i + 1] == y:
                 # pop i twice
                 indices.pop(i)
                 indices.pop(i)
@@ -140,7 +142,8 @@ class WordPiecer:
         return " ".join(self.decode(indices, strip_eow=False))
 
     @classmethod
-    def learn(cls, tokens_: List[str], character_threshold: int = 5, max_vocab: int = 100) -> 'WordPiecer':
+    def learn(cls, tokens_: List[str], character_threshold: int = 5,
+              max_vocab: int = 100) -> 'WordPiecer':
         """
         Learns a word piecer from a sequence of tokens.
         :param tokens_: a sequence of strings to learn from. By default, all tokens are appended with EOW tags.
@@ -171,7 +174,8 @@ class WordPiecer:
                 indices[char] = len(pieces)
                 pieces.append(char)
 
-        assert len(pieces) < max_vocab, f"max_vocab ({max_vocab}) is too small to fit the {len(pieces)} characters"
+        assert len(
+            pieces) < max_vocab, f"max_vocab ({max_vocab}) is too small to fit the {len(pieces)} characters"
 
         # 1.3 Replace sequences with integers indices.
         data: List[Tuple[List[int], int]] = []
@@ -187,7 +191,7 @@ class WordPiecer:
         # 2.1 Build statistics for merges.
         for datum, freq in data:
             for i in range(len(datum) - 1):
-                merge_stats[datum[i], datum[i+1]] += freq
+                merge_stats[datum[i], datum[i + 1]] += freq
 
         # 2.2 While the vocabulary size can take it, keep merging tokens.
         while len(pieces) < max_vocab and merge_stats:
@@ -205,19 +209,19 @@ class WordPiecer:
             for datum, freq in data:
                 for i, _ in enumerate(datum):
                     # Handle corner case.
-                    if i == len(datum)-1:
+                    if i == len(datum) - 1:
                         break
 
                     # Aha, this is a candidate merge
-                    if datum[i] == x and datum[i+1] == y:
+                    if datum[i] == x and datum[i + 1] == y:
                         datum.pop(i)
                         datum.pop(i)
                         datum.insert(i, z)
 
                         # Update statistics
                         if i < len(datum) - 1:
-                            merge_stats[y, datum[i+1]] -= freq
-                            merge_stats[z, datum[i+1]] += freq
+                            merge_stats[y, datum[i + 1]] -= freq
+                            merge_stats[z, datum[i + 1]] += freq
 
             # We will never see x, y again so remove it.
             merge_stats.pop((x, y))
@@ -246,7 +250,8 @@ class WordPiecer:
             return ls[0], ls[1]
 
         pieces = zf.read("encoder/pieces.txt").decode("utf-8").split("\n")
-        merges = [as_tuple(line.split("\t")) for line in zf.read("encoder/merges.txt").decode("utf-8").split("\n")]
+        merges = [as_tuple(line.split("\t")) for line in
+                  zf.read("encoder/merges.txt").decode("utf-8").split("\n")]
         return cls(pieces, merges)
 
     @classmethod
@@ -258,11 +263,10 @@ class WordPiecer:
             assert idxs[0] == 0 and idxs[-1] == len(pieces) - 1
 
         with open(merges_path) as f:
-            merges = [(x, y) for line in f.readlines() for x, y in line.strip().split() if not line.startswith("#")]
+            merges = [(x, y) for line in f.readlines() for x, y in line.strip().split() if
+                      not line.startswith("#")]
 
         return cls(pieces, merges)
 
 
 __all__ = ['WordPiecer']
-
-

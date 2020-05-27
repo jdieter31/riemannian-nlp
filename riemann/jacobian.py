@@ -1,5 +1,4 @@
 import torch
-from torch.autograd.gradcheck import zero_gradients
 
 
 def compute_jacobian(f, x, noutputs):
@@ -26,6 +25,8 @@ def compute_jacobian(f, x, noutputs):
     for i in range(len(x.size()) - 2):
         grad_in.unsqueeze_(1)
     grad_in = grad_in.expand_as(y)
-    jacobian = torch.autograd.grad(y, x, grad_outputs=grad_in, retain_graph=True, create_graph=True, only_inputs=True)[0]
+    jacobian = torch.autograd.grad(y, x, grad_outputs=grad_in, retain_graph=True, create_graph=True,
+                                   only_inputs=True)[0]
     jacobian.requires_grad_(True)
-    return jacobian.permute(*(list(range(1, len(jacobian.size()) - 1)) + [0, len(jacobian.size()) - 1])), y[0]
+    return jacobian.permute(
+        *(list(range(1, len(jacobian.size()) - 1)) + [0, len(jacobian.size()) - 1])), y[0]

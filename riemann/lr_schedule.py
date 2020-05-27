@@ -1,8 +1,10 @@
-from sacred import Ingredient
-from torch.optim.lr_scheduler import LambdaLR
 from math import sqrt
 
+from sacred import Ingredient
+from torch.optim.lr_scheduler import LambdaLR
+
 lr_schedule_ingredient = Ingredient("lr_schedule")
+
 
 @lr_schedule_ingredient.config
 def config():
@@ -24,25 +26,29 @@ def config():
     lr_durations = [1]
     decay_rate = 20
 
+
 @lr_schedule_ingredient.capture
 def get_lr_scheduler(optimizer, schedule_type, base_lr, scheduled_lrs, lr_durations, decay_rate):
     if schedule_type == "constant":
         return LambdaLR(optimizer, lambda epoch: 1)
     elif schedule_type == "linear" or schedule_type == "fixed_schedule":
         return LambdaLR(optimizer,
-                lambda epoch: get_lr_from_schedule(epoch, scheduled_lrs, lr_durations,
-                    linear_interpolate = (schedule_type == "linear")))
+                        lambda epoch: get_lr_from_schedule(epoch, scheduled_lrs, lr_durations,
+                                                           linear_interpolate=(
+                                                                       schedule_type == "linear")))
     elif schedule_type == "decay":
-        return LambdaLR(optimizer, lambda epoch: 1/sqrt(1 + decay_rate * epoch))
+        return LambdaLR(optimizer, lambda epoch: 1 / sqrt(1 + decay_rate * epoch))
 
 
 @lr_schedule_ingredient.capture
 def get_base_lr(base_lr):
     return base_lr
 
+
 @lr_schedule_ingredient.capture
 def get_fixed_embedding_lr(fixed_embedding_lr):
     return fixed_embedding_lr
+
 
 def get_lr_from_schedule(epoch, scheduled_lrs, lr_durations, linear_interpolate=False):
     i = 0
@@ -57,5 +63,5 @@ def get_lr_from_schedule(epoch, scheduled_lrs, lr_durations, linear_interpolate=
     if not linear_interpolate or i == len(lr_durations):
         return scheduled_lrs[i]
     if linear_interpolate:
-        progress = (epoch - sum_epochs + lr_durations[i])/lr_durations[i]
-        return (1 - progress) * scheduled_lrs[i] + progress * scheduled_lrs[i+1]
+        progress = (epoch - sum_epochs + lr_durations[i]) / lr_durations[i]
+        return (1 - progress) * scheduled_lrs[i] + progress * scheduled_lrs[i + 1]

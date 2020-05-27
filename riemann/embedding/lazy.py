@@ -24,7 +24,7 @@ class lazy(object):
             return self
 
         if not hasattr(instance, '__dict__'):
-            raise AttributeError("'{}' object has no attribute '__dict__'".format(owner.__name__,))
+            raise AttributeError("'{}' object has no attribute '__dict__'".format(owner.__name__, ))
 
         name = self.__name__
         if name.startswith('__') and not name.endswith('__'):

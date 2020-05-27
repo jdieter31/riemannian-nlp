@@ -1,6 +1,6 @@
-from typing import List, Sequence, Dict
-from abc import ABC, abstractmethod
 import re
+from abc import ABC, abstractmethod
+from typing import List, Sequence, Dict
 
 
 def simple_hash(token: str, output_size: int) -> int:
@@ -237,5 +237,6 @@ def default_token_mapper(unk_classes: int = 10):
     ])
 
 
-__all__ = ['TokenMapping', 'RegexTokenMapping', 'HashTokenMapping', 'ExactTokenMapping', 'TokenMapper',
+__all__ = ['TokenMapping', 'RegexTokenMapping', 'HashTokenMapping', 'ExactTokenMapping',
+           'TokenMapper',
            'default_token_mapper', 'simple_hash']

@@ -7,13 +7,16 @@
 #
 
 import re
+
 import pandas
 from nltk.corpus import wordnet as wn
 from tqdm import tqdm
+
 try:
     wn.all_synsets
 except LookupError as e:
     import nltk
+
     nltk.download('wordnet')
 
 # make sure each edge is included only once
@@ -29,7 +32,6 @@ for synset in tqdm(wn.all_synsets(pos='n')):
             edges.add((instance.name(), hyper.name()))
             for h in hyper.closure(lambda s: s.hypernyms()):
                 edges.add((instance.name(), h.name()))
-
 
 edges_no_closure = set()
 for synset in tqdm(wn.all_synsets(pos='n')):
@@ -51,17 +53,17 @@ mammal_set.add('mammal.n.01')
 
 # Select relations that have a mammal as hypo and hypernym
 mammals = nouns[nouns.id1.isin(mammal_set) & nouns.id2.isin(mammal_set)]
-mammals_no_closure = nouns_no_closure[nouns_no_closure.id1.isin(mammal_set) & nouns_no_closure.id2.isin(mammal_set)]
+mammals_no_closure = nouns_no_closure[
+    nouns_no_closure.id1.isin(mammal_set) & nouns_no_closure.id2.isin(mammal_set)]
 
 with open('mammals_filter.txt', 'r') as fin:
     filt = re.compile(f'({"|".join([l.strip() for l in fin.readlines()])})')
 
-
 filtered_mammals = mammals[~mammals.id1.str.cat(' ' + mammals.id2).str.match(filt)]
-filtered_mammals_no_closure = mammals_no_closure[~mammals_no_closure.id1.str.cat(' ' + mammals_no_closure.id2).str.match(filt)]
+filtered_mammals_no_closure = mammals_no_closure[
+    ~mammals_no_closure.id1.str.cat(' ' + mammals_no_closure.id2).str.match(filt)]
 
 nouns.to_csv('noun_closure.csv', index=False)
 nouns_no_closure.to_csv('nouns.csv', index=False)
 filtered_mammals.to_csv('mammal_closure.csv', index=False)
 filtered_mammals_no_closure.to_csv('mammals.csv', index=False)
-
