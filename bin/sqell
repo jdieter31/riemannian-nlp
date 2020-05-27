@@ -33,7 +33,7 @@ fi;
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT="${SCRIPT_DIR}/.."
 
-if [[ ${BASH_VERSINFO[0]} != 5 ]]; then
+if [[ ${BASH_VERSINFO[0]} < 4 ]]; then
   echo "This script only works with bash 5+."
   if [[ $(uname) == Darwin ]]; then
     echo "The default version of bash installed on macOS is 3, which is
