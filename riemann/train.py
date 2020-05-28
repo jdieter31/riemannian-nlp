@@ -94,8 +94,7 @@ class TrainSchedule(abc.ABC):
         Trains according to the schedule
         """
 
-        for task, repeat_every, cycle_on_iterations in \
-                self.cyclic_tasks:
+        for task, repeat_every, cycle_on_iterations in self.cyclic_tasks:
 
             if cycle_on_iterations:
                 # This task is meant for iterations not epochs
@@ -108,8 +107,7 @@ class TrainSchedule(abc.ABC):
             self.run_epoch(epoch)
             self.epoch_num += 1
 
-            for task, repeat_every, cycle_on_iterations in \
-                    self.cyclic_tasks:
+            for task, repeat_every, cycle_on_iterations in self.cyclic_tasks:
 
                 if cycle_on_iterations:
                     # This task is meant for iterations not epochs

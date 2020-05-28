@@ -21,6 +21,7 @@ def compute_jacobian(f, x, noutputs):
         x = x.repeat(noutputs, *[1 for _ in range(len(x.size()) - 1)])
     x.requires_grad_(True)
     y = f(x)
+
     grad_in = torch.eye(noutputs, dtype=x.dtype, device=x.device)
     for i in range(len(x.size()) - 2):
         grad_in.unsqueeze_(1)
@@ -28,5 +29,6 @@ def compute_jacobian(f, x, noutputs):
     jacobian = torch.autograd.grad(y, x, grad_outputs=grad_in, retain_graph=True, create_graph=True,
                                    only_inputs=True)[0]
     jacobian.requires_grad_(True)
+
     return jacobian.permute(
         *(list(range(1, len(jacobian.size()) - 1)) + [0, len(jacobian.size()) - 1])), y[0]

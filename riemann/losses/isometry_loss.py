@@ -1,4 +1,5 @@
 from math import log
+import logging
 
 import torch
 from torch.nn.functional import relu
@@ -7,7 +8,10 @@ from ..jacobian import compute_jacobian
 from ..manifolds import RiemannianManifold
 
 # Add to ensure there are no anomalous zero eigenvalues
-EPSILON = 0.0001
+EPSILON = 1e-8
+
+
+logger = logging.getLogger(__name__)
 
 
 def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
@@ -92,25 +96,23 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    eigenvalues = relu(eigenvalues)
-    log_eig = torch.log(eigenvalues)
+    if EPSILON > 0:
+        log_eig = torch.log(relu(eigenvalues) + EPSILON)
+    else:
+        log_eig = torch.log(relu(eigenvalues))
     # Filter potential nans
-    log_eig[log_eig != log_eig] = 0
-    log_eig[log_eig == float('-inf')] = 0
+    if torch.isnan(log_eig).any():
+        logger.warning("Found a nan in divergence score")
+        log_eig[torch.isnan(log_eig)] = 0
+    if torch.isinf(log_eig).any():
+        logger.warning("Found a inf in divergence score")
+        log_eig[torch.isinf(log_eig)] = 0
     return (log_eig * log_eig).sum(dim=-1)
 
 
 def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor,
                          max_distortion: float=None):
-    matrix_a_inv = torch.inverse(matrix_a)
-    ainvb = torch.bmm(matrix_a_inv, matrix_b)
-    eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    eigenvalues = relu(eigenvalues)
-    log_eig = torch.log(eigenvalues)
-    # Filter potential nans
-    log_eig[log_eig != log_eig] = 0
-    log_eig[log_eig == float('-inf')] = 0
-    iso_loss = (log_eig * log_eig).sum(dim=-1)
+    iso_loss = riemannian_divergence(matrix_a, matrix_b)
 
     log_det_diff = torch.logdet(matrix_a) - torch.logdet(matrix_b)
 

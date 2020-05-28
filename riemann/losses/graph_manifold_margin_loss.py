@@ -1,3 +1,5 @@
+import logging
+
 import torch
 from torch.nn.functional import relu
 
@@ -6,9 +8,14 @@ from ..graph_embedder import GraphEmbedder
 from ..manifolds import RiemannianManifold
 
 
+logger = logging.getLogger(__name__)
+
+EPSILON = 1e-8
+
+
 def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                manifold: RiemannianManifold, margin=0.01,
-                               scale_function=lambda x: torch.log(x)):
+                               scale_function=lambda x: torch.log(x + EPSILON)):
     """
     See write up for details on this loss function -- encourages embeddings to
     preserve graph topology
@@ -69,7 +76,9 @@ def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
     masked_diff_matrix = relu(masked_diff_matrix)
     # Filter out nans - inevitable if distances are zero anywhere and log scale
     # is used
-    masked_diff_matrix[masked_diff_matrix != masked_diff_matrix] = 0
-    masked_diff_matrix[masked_diff_matrix == float('inf')] = 0
+    if torch.isnan(masked_diff_matrix).any():
+        logger.warning("Masked differences are NaN")
+    masked_diff_matrix[torch.isnan(masked_diff_matrix)] = 0
+    masked_diff_matrix[torch.isinf(masked_diff_matrix)] = 0
     loss = masked_diff_matrix.sum(dim=-1).sum(dim=-1).mean()
     return loss
