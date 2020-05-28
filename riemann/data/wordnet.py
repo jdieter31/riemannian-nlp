@@ -20,31 +20,31 @@ except LookupError as e:
     nltk.download('wordnet')
 
 # make sure each edge is included only once
-edges = set()
+hypernym_edges = set()
 for synset in tqdm(wn.all_synsets(pos='n')):
     # write the transitive closure of all hypernyms of a synset to file
     for hyper in synset.closure(lambda s: s.hypernyms()):
-        edges.add((synset.name(), hyper.name()))
+        hypernym_edges.add((synset.name(), hyper.name()))
 
     # also write transitive closure for all instances of a synset
     for instance in synset.instance_hyponyms():
         for hyper in instance.closure(lambda s: s.instance_hypernyms()):
-            edges.add((instance.name(), hyper.name()))
+            hypernym_edges.add((instance.name(), hyper.name()))
             for h in hyper.closure(lambda s: s.hypernyms()):
-                edges.add((instance.name(), h.name()))
+                hypernym_edges.add((instance.name(), h.name()))
 
-edges_no_closure = set()
+hypernym_edges_no_closure = set()
 for synset in tqdm(wn.all_synsets(pos='n')):
     for hyper in synset.hypernyms():
-        edges_no_closure.add((synset.name(), hyper.name()))
+        hypernym_edges_no_closure.add((synset.name(), hyper.name()))
 
     for hyper in synset.instance_hypernyms():
-        edges_no_closure.add((synset.name(), hyper.name()))
+        hypernym_edges_no_closure.add((synset.name(), hyper.name()))
 
-nouns = pandas.DataFrame(list(edges), columns=['id1', 'id2'])
+nouns = pandas.DataFrame(list(hypernym_edges), columns=['id1', 'id2'])
 nouns['weight'] = 1
 
-nouns_no_closure = pandas.DataFrame(list(edges_no_closure), columns=['id1', 'id2'])
+nouns_no_closure = pandas.DataFrame(list(hypernym_edges_no_closure), columns=['id1', 'id2'])
 nouns_no_closure['weight'] = 1
 
 # Extract the set of nouns that have "mammal.n.01" as a hypernym

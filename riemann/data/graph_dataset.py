@@ -6,6 +6,8 @@ import numpy as np
 from graph_tool import Graph
 from tqdm import tqdm
 from scipy.special import comb
+import os
+import errno
 
 from .graph_data_batch import GraphDataBatch
 from .graph_data_batch_iterator import GraphDataBatchIterator
@@ -210,7 +212,7 @@ class GraphDataset:
         data_config = get_config().data
         np.random.seed(data_config.split_seed)
         if data_config.split_by_edges:
-
+            # TODO Doesn't save to file in this mode
             shuffle_order = np.arange(edges.shape[0])
             np.random.shuffle(shuffle_order)
             num_eval = floor(edges.shape[0] * data_config.split_size)
@@ -225,31 +227,67 @@ class GraphDataset:
             np.random.shuffle(shuffle_order)
             num_eval = floor(len(object_ids) * data_config.split_size)
             eval_indices = shuffle_order[:num_eval]
-            train_indices = shuffle_order[num_eval:]
 
+            test_set = data_config.generate_test_set
+            if test_set:
+                test_indices = shuffle_order[num_eval: 2*num_eval] 
+            train_indices = shuffle_order[2 * num_eval:] if test_set else \
+                shuffle_order[num_eval:]
+            
             train_edges = []
             eval_edges = []
             train_weights = []
             eval_weights = []
+            if test_set:
+                test_edges = []
+                test_weights = []
+                
             for edge, weight in zip(edges, weights):
-                if edge[0] in eval_indices or edge[1] in eval_indices:
+                if test_set and (edge[0] in test_indices or edge[1] in
+                                 test_indices):
+                    test_edges.append(edge)
+                    test_weights.append(weight)
+                elif edge[0] in eval_indices or edge[1] in eval_indices:
                     eval_edges.append(edge)
                     eval_weights.append(weight)
                 else:
                     train_edges.append(edge)
                     train_weights.append(weight)
 
+            if test_set:
+                save_graph_data(test_edges, test_weights, object_ids,
+                                data_config.test_path)
+            save_graph_data(train_edges, train_weights, object_ids,
+                            data_config.train_path)
+            save_graph_data(eval_edges, eval_weights, object_ids,
+                            data_config.eval_path)
+            
             train_edges = np.array(train_edges)
             eval_edges = np.array(eval_edges)
             train_weights = np.array(train_weights)
             eval_weights = np.array(eval_weights)
 
-
-        train_data = GraphDataset(f"{name}_train_{data_config.split_seed}",
+        train_data = GraphDataset(f"{name}_train",
                                   train_edges, object_ids, train_weights)
 
-        eval_data = GraphDataset(f"{name}_eval_{data_config.split_seed}",
+        eval_data = GraphDataset(f"{name}_eval",
                                  eval_edges, object_ids, eval_weights,
                                  hidden_graph=train_data)
 
         return train_data, eval_data
+
+def save_graph_data(edges, weights, object_ids, filename):
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc: # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+
+    with open(filename, "w+") as f:
+        data_config = get_config().data
+        delim = data_config.delimiter
+        f.write(f"id1{delim}id2{delim}weight\n")
+        for i, edge in enumerate(edges):
+            f.write(f"{object_ids[edge[0]]}{delim}{object_ids[edge[1]]}{delim}{weights[i]}\n")
+

@@ -17,7 +17,7 @@ from .losses.single_loss_processor import SingleLossProcessor
 from .manifold_tensors import ManifoldParameter
 from .optimizer_gen import get_optimizer
 from .train import TrainSchedule
-from .visualize import plot
+from .visualize import plot, plot_degree_distribution
 
 
 class GraphEmbeddingTrainSchedule(TrainSchedule):
@@ -50,6 +50,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
                 sampling_config.train_sampling_config)
             n_tasks = len(cast(Sized, data_iterator))
             yield data_iterator, (self._get_tasks_for_batch() for _ in range(n_tasks))
+
 
     def _get_loss_processor(self):
         if self._loss_processor is None:

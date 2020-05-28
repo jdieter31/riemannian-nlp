@@ -129,3 +129,6 @@ runs-*
 # Weights and biases
 wandb/
 
+riemann/models/
+riemann/runs/
+riemann/experiments/

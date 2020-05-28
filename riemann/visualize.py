@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from matplotlib.figure import Figure
+from graph_tool import Graph
+
 
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from .manifolds import SphericalManifold
@@ -87,3 +89,10 @@ def axisEqual3D(ax):
     r = maxsize / 2
     for ctr, dim in zip(centers, 'xyz'):
         getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
+
+
+def plot_degree_distribution(graph: Graph, file_name):
+    degrees = graph.get_total_degrees(graph.get_vertices())
+    plt.hist(degrees)
+    plt.savefig(file_name)
+    plt.clf()
