@@ -8,7 +8,7 @@
 #
 # The script respects the following environment variables:
 # - SPELL_MACHINE: specifies which machine type will be used. By
-#   default, this is 'k80' (a standard GPU machine).
+#   default, this is 't4' (a standard GPU machine).
 # - SPELL_MOUNTS: specifies which buckets will be mounted in the Spell
 #   image. Defaults to '-m public-data/riemann:/spell/riemannian-nlp/data -m
 #   resources:/spell/riemannian-nlp/resources'
@@ -46,7 +46,7 @@ set -o errexit
 
 if [ -z "${SPELL_PARAMS:-}" ]; then
   echo "You must set \$SPELL_PARAMS to specify which hyper-parameters to search.
-For example, try SPELL_PARAMS='--num-runs 10 --param lr=0.01:1:linear'";
+For example, try SPELL_PARAMS='random --num-runs 10 --param lr=0.01:1:linear'";
   exit 1;
 fi;
 
@@ -61,7 +61,7 @@ fi;
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 ROOT="${SCRIPT_DIR}/.."
 
-if [[ ${BASH_VERSINFO[0]} != 5 ]]; then
+if [[ ${BASH_VERSINFO[0]} < 4 ]]; then
   echo "This script only works with bash 5+."
   if [[ $(uname) == Darwin ]]; then
     echo "The default version of bash installed on macOS is 3, which is
@@ -75,25 +75,35 @@ fi;
 SPELL_ROOT='/spell/riemannian-nlp'
 
 # FAISS needs libomp to run.
-apt_dependencies='--apt libomp-dev'
+apt_dependencies='--apt libomp-dev --apt libgdk3.0-cil'
 
 # Convert args into an array: this is use with quote escaping below:
 # ${args[@]@Q} to make sure arguments are correctly parsed on the
 # remote.
 args=("$@");
-# Replace STATE_DIR WITH SPELL_ROOT
-args=("${args[@]//STATE_DIR/$SPELL_ROOT\/state}");
+# Replace STATE_DIR WITH $SPELL_ROOT/state
+args=("${args[@]//STATE_DIR/SPELL_ROOT\/state}");
+# Replace SPELL_ROOT WITH $SPELL_ROOT
+args=("${args[@]//SPELL_ROOT/$SPELL_ROOT}");
 
 if [ -n ${SPELL_DEBUG:-} ]; then
   $ROOT/bin/arglist.sh "${args[@]@Q}";
 fi;
 
+# Convert environment variables as well
+envs=(\
+  "EMBEDDING_EVALUATION_DATA_PATH=${EMBEDDING_EVALUATION_DATA_PATH:-SPELL_ROOT/data/evaluation}"\
+  "GLOVE_PATH=${GLOVE_PATH:-SPELL_ROOT/resources/glove.840B.300d.zip}"\
+  )
+# Replace SPELL_ROOT WITH $SPELL_ROOT
+envs=("${envs[@]//SPELL_ROOT/$SPELL_ROOT}");
+
 # Make sure we have an up-to-date Conda file to setup the right Python
 # dependencies
 make -C ${ROOT} .spell-conda.yml
 
-exec spell hyper random ${SPELL_PARAMS} \
-  -t ${SPELL_MACHINE:-k80} \
+exec spell hyper ${SPELL_PARAMS} \
+  -t ${SPELL_MACHINE:-t4} \
   ${SPELL_MOUNTS:--m public_data/riemann:$SPELL_ROOT/data -m resources:$SPELL_ROOT/resources} \
   ${apt_dependencies} \
   --conda-file ${ROOT}/.spell-conda.yml \
@@ -103,4 +113,4 @@ exec spell hyper random ${SPELL_PARAMS} \
         make compile-in-spell;
       popd;
       '$SPELL_ROOT'/bin/arglist.sh '"${args[@]@Q}"';
-      EMBEDDING_EVALUATION_DATA_PATH='$SPELL_ROOT'/data/evaluation PYTHONPATH=$PYTHONPATH:'$SPELL_ROOT' python '"${args[@]@Q}";
+      '${envs[@]}' PYTHONPATH=$PYTHONPATH:'$SPELL_ROOT' python '"${args[@]@Q}";
