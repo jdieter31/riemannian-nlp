@@ -55,9 +55,9 @@ def arsinh(x):
 
 
 class PoincareBall(RiemannianManifold):
-    '''
+    """
     Implementation of PoincareBall model of hyperbolic space
-    '''
+    """
 
     @classmethod
     def from_params(cls, params):

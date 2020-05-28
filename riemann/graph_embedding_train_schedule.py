@@ -6,6 +6,7 @@ import wandb
 from tqdm import tqdm
 
 from .config.config_loader import get_config
+from .config.config_specs.model_config import ModelConfig
 from .data.batching import DataBatch
 from .data.data_loader import get_training_data, get_eval_data
 from .evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
@@ -66,9 +67,9 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
         return self._loss_processor
 
     def _get_losses(self) -> List[Callable[[DataBatch], torch.Tensor]]:
-        general_config = get_config().general
+        model_config: ModelConfig = get_config().model
         loss_config = get_config().loss
-        manifold = general_config.embed_manifold.get_manifold_instance()
+        manifold = model_config.target_manifold_.get_manifold_instance()
 
         margin_loss = lambda data_batch: \
             graph_manifold_margin_loss(self.model, data_batch, manifold,

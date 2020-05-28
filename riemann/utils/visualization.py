@@ -10,6 +10,7 @@ from . import svg3d
 # region: common parametric surfaces
 from .svg3d import parametric_surface
 from .. import RiemannianManifold, EuclideanManifold, ProductManifold
+from ..config.manifold_config import ManifoldConfig
 
 
 def sphere(u, v):
@@ -147,7 +148,7 @@ def test_manifold_scatter():
     # H2 -> (x, y) |x, y| < 1?
     # H3 -> (x, y, z) |x, y, z| < 1?
     # SxH2 -> (sin(θ), cos(θ), x, y) |x, y| < 3?
-    drawing = manifold_scatter(ProductManifold.from_string("S1xE1"),
+    drawing = manifold_scatter(ManifoldConfig.from_string("S1xE1").get_manifold_instance(),
                                np.hstack(
                                    (2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3)),
                                sum(([color] * 20 for color in
@@ -155,7 +156,7 @@ def test_manifold_scatter():
                                list(range(5)))
     drawing.saveas("S1xE1.svg")
 
-    drawing = manifold_scatter(ProductManifold.from_string("S1xE2"),
+    drawing = manifold_scatter(ManifoldConfig.from_string("S1xE2").get_manifold_instance(),
                                np.hstack((
                                          2 * np.random.rand(100, 1) - 1, np.random.rand(100, 1) * 3,
                                          np.random.rand(100, 1) * 3)),
@@ -164,13 +165,15 @@ def test_manifold_scatter():
                                list(range(5)))
     drawing.saveas("S1xE2.svg")
 
-    drawing = manifold_scatter(ProductManifold.from_string("S1xS1"), 2 * np.random.rand(100, 2) - 1,
+    drawing = manifold_scatter(ManifoldConfig.from_string("S1xE1").get_manifold_instance(),
+                               2 * np.random.rand(100, 2) - 1,
                                sum(([color] * 20 for color in
                                     "red blue green black yellow".split()), []),
                                list(range(5)))
     drawing.saveas("S1xS1.svg")
 
-    drawing = manifold_scatter(EuclideanManifold(), np.random.randn(100, 2),
+    drawing = manifold_scatter(ManifoldConfig.from_string("E2").get_manifold_instance(),
+                               np.random.randn(100, 2),
                                sum(([color] * 20 for color in
                                     "red blue green black yellow".split()), []),
                                list(range(5)))

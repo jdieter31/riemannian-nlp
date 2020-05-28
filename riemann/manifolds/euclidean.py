@@ -4,9 +4,9 @@ from .manifold import RiemannianManifold
 
 
 class EuclideanManifold(RiemannianManifold):
-    '''
+    """
     Implementation of Euclidean Riemannian manifold with standard metric
-    '''
+    """
 
     @classmethod
     def from_params(cls, params):

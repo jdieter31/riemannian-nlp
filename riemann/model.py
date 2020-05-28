@@ -22,17 +22,17 @@ def get_model() -> GraphEmbedder:
 
     if __model is None:
         model_config = get_config().model
-        general_config = get_config().general
 
-        embed_manifold = general_config.embed_manifold.get_manifold_instance()
+        target_manifold = model_config.target_manifold_.get_manifold_instance()
+        target_manifold_dim = model_config.target_manifold_.dimension
 
         featurizer, featurizer_dim, featurizer_manifold = get_featurizer()
 
         if featurizer is None:
             __model = ManifoldEmbedding(
-                embed_manifold,
+                target_manifold,
                 data.n_nodes(),
-                general_config.embed_manifold_dim,
+                target_manifold_dim,
                 sparse=model_config.sparse,
                 manifold_initialization=
                 model_config.manifold_initialization.get_initialization_dict())
@@ -45,9 +45,8 @@ def get_model() -> GraphEmbedder:
                 get_feature_model(),
                 featurizer_manifold,
                 featurizer_dim,
-                embed_manifold,
-                general_config.embed_manifold_dim,
-                model_config.train_isometry
+                target_manifold,
+                target_manifold_dim,
             )
 
     return __model
@@ -56,25 +55,24 @@ def get_model() -> GraphEmbedder:
 def get_feature_model():
     featurizer, featurize_dim, in_manifold = get_featurizer()
 
-    general_config = get_config().general
     model_config = get_config().model
-    manifold_out = general_config.embed_manifold.get_manifold_instance()
-    manifold_out_dim = general_config.embed_manifold_dim
+    manifold_out = model_config.target_manifold_.get_manifold_instance()
+    manifold_out_dim = model_config.target_manifold_.dimension
 
     manifold_initialization = \
         model_config.manifold_initialization.get_initialization_dict()
 
-    intermediate_dims = model_config.intermediate_dims
     intermediate_manifolds = [m.get_manifold_instance() for m in
                               model_config.intermediate_manifolds]
+    intermediate_dims = [manifold.dimension for manifold in model_config.intermediate_manifolds]
     nonlinearity = model_config.nonlinearity
+    num_poles = model_config.num_poles
 
     device = get_device()
 
-    log_base_inits = []
-    log_base_inits.append(
+    log_base_inits = [
         get_initialized_manifold_tensor(device, torch.float, [1, featurize_dim], in_manifold,
-                                        manifold_initialization, requires_grad=True))
+                                        manifold_initialization, requires_grad=True)]
     exp_base_inits = []
     manifold_seq = [in_manifold]
     dimension_seq = [featurize_dim]
@@ -95,7 +93,7 @@ def get_feature_model():
                                         manifold_initialization, requires_grad=True))
     dimension_seq.append(manifold_out_dim)
     manifold_seq.append(manifold_out)
-    featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, nonlinearity, 1, log_base_inits,
+    featurized_model = ManifoldNetwork(manifold_seq, dimension_seq, nonlinearity, num_poles, log_base_inits,
                                        exp_base_inits)
     featurized_model.to(device)
     register_parameter_group(featurized_model.parameters())

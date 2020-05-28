@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
                   RiemannianManifold, out_manifold: RiemannianManifold,
-                  out_dimension: int, isometric=False, max_distortion=None):
+                  out_dimension: int, conformality: float=1.0):
     """
     See write up for details on this loss functions -- encourages model to be
     isometric or to be conformal
@@ -31,23 +31,13 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
         out_manifold (RiemannianManifold): RiemannianManifold object
             characterizing output space
         out_dimension (int): dimension of tensors in out_manifold
-        isometric (bool): The function will be optimized to be isometric if
-            True, conformal if False. Riemannian distance on the manifold of PD
-            matrices is used to optimized the metrics if isometric and cosine
-            distance between the flattened metric matrices is used if conformal
+        conformality (float): The degree of conformality to use; a value of 1 implies we will use
+            a purely isometric loss. A value of 0 uses an unbounded conformal loss.
 
     Returns:
         pytorch scalar: computed loss
     """
 
-    """
-    input_embeddings = model(input_embeddings)
-
-    if random_samples > 0:
-        random_samples = torch.empty(random_samples, input_embeddings.size()[1], dtype=input_embeddings.dtype, device=input_embeddings.device)
-        initialize_manifold_tensor(random_samples, in_manifold, random_init)
-        input_embeddings = torch.cat([input_embeddings, random_samples])
-    """
     jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
     tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
@@ -76,14 +66,8 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     in_metric_batch = in_metric.view(-1, in_metric_shape[-2], in_metric_shape[-1])
     sig_eig_t = torch.transpose(significant_eigenvec_batch, -2, -1)
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
-    in_metric_flattened = in_metric_batch.view(in_metric_reduced.size()[0], -1)
-    pullback_flattened = pullback_metric.view(pullback_metric.size()[0], -1)
 
-    if isometric:
-        rd = riemannian_divergence(pullback_metric, in_metric_reduced)
-    else:
-        rd = conformal_divergence(pullback_metric, in_metric_reduced,
-                                  max_distortion)
+    rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()
 
     return loss
@@ -111,15 +95,16 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
 
 
 def conformal_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor,
-                         max_distortion: float=None):
+                         conformality: float = 1.0):
     iso_loss = riemannian_divergence(matrix_a, matrix_b)
+    if conformality == 1.0:
+        return iso_loss
 
     log_det_diff = torch.logdet(matrix_a) - torch.logdet(matrix_b)
+    conformal_correction = (log_det_diff ** 2) / matrix_a.size(-1)
 
-    last_term = (log_det_diff ** 2) / matrix_a.size(-1)
-
-    if max_distortion is not None:
-        nlogb2 = matrix_a.size(-1) * (log(max_distortion) ** 2)
-        return torch.where(last_term < nlogb2, iso_loss - last_term, iso_loss)
-
-    return iso_loss - last_term
+    if conformality > 0.:
+        nlogb2 = matrix_a.size(-1) * (log(conformality) ** 2)
+        return torch.where(conformal_correction < nlogb2, iso_loss - conformal_correction, iso_loss)
+    else:
+        return iso_loss - conformal_correction

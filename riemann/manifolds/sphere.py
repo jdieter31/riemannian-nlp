@@ -26,9 +26,9 @@ def acos(x):
 
 
 class SphericalManifold(RiemannianManifold):
-    '''
+    """
     Implementation of Spherical Riemannian manifold with standard pullback metric
-    '''
+    """
 
     @classmethod
     def from_params(cls, params):

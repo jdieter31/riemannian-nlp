@@ -30,8 +30,8 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                  featurizer: Callable[[np.ndarray, torch.Tensor], torch.Tensor],
                  model: nn.Module,
                  in_manifold: RiemannianManifold, in_dimension: int,
-                 out_manifold: RiemannianManifold, out_dimension: int,
-                 isometry_loss: bool = True):
+                 out_manifold: RiemannianManifold, out_dimension: int
+                 ):
         """
         Params:
             graph_dataset  (GraphDataset): graph dataset this is embedding
@@ -52,7 +52,6 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         self.in_manifold = in_manifold
         self.in_dimension = in_dimension
         self.out_manifold = out_manifold
-        self.isometry_loss = isometry_loss
         self.out_dimension = out_dimension
 
     def embed_graph_data(self, node_ids: torch.Tensor, object_ids:
@@ -93,13 +92,12 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
         return FeaturizedGraphEmbedder()
 
     def get_losses(self):
-        if self.isometry_loss:
+        loss_config = get_config().loss
+        if loss_config.use_conformality_regularizer:
             def batch_isometry_loss(data_batch: GraphDataBatch):
-                loss_config = get_config().loss
                 random_samples = loss_config.random_isometry_samples
                 initialization = \
                     loss_config.random_isometry_initialization.get_initialization_dict()
-                isometric = not loss_config.conformal
 
                 random_samples = torch.empty(random_samples,
                                              self.in_dimension,
@@ -109,8 +107,7 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                                            initialization)
                 return isometry_loss(self.model, random_samples,
                                      self.in_manifold, self.out_manifold,
-                                     self.out_dimension, isometric,
-                                     loss_config.max_distortion
+                                     self.out_dimension, loss_config.conformality
                                      )
 
             return [batch_isometry_loss]

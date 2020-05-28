@@ -2,6 +2,7 @@ import torch
 import wandb
 
 from ..config.config_loader import get_config
+from ..config.config_specs.model_config import ModelConfig
 from ..data.batching import BatchTask
 from ..data.data_loader import get_training_data, get_eval_data
 from ..data.graph_data_batch import GraphDataBatch
@@ -32,16 +33,16 @@ class MeanRankEvaluator(BatchTask):
         model = get_model()
 
         # Get manifold
-        general_config = get_config().general
-        manifold = general_config.embed_manifold.get_manifold_instance()
+        model_config: ModelConfig = get_config().model
+        manifold = model_config.target_manifold_.get_manifold_instance()
 
         # Isolate portion of input that are neighbors
         sample_vertices = model.embed_nodes(batch.get_tensors()["neighbors"])
 
         # Isolate portion of input that are main vertices
         main_vertices = \
-            model.embed_nodes(batch.get_tensors()["vertices"]) \
-                .unsqueeze(1).expand_as(sample_vertices)
+            model.embed_nodes(batch.get_tensors()["vertices"]
+                              ).unsqueeze(1).expand_as(sample_vertices)
 
         manifold_dists = manifold.dist(main_vertices, sample_vertices)
 
@@ -51,7 +52,7 @@ class MeanRankEvaluator(BatchTask):
         sorted_indices = manifold_dists.argsort(dim=-1)
         manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
         n_neighbors = (train_distances < 2).sum(dim=-1)
-        batch_nums, neighbor_ranks = (sorted_indices < \
+        batch_nums, neighbor_ranks = (sorted_indices <
                                       n_neighbors.unsqueeze(1)).nonzero(as_tuple=True)
         neighbor_ranks += 1
 

@@ -8,27 +8,24 @@ from ..manifold_initialization_config import ManifoldInitializationConfig
 CONFIG_NAME = "model"
 
 
-def get_latest_model(path="model/model"):
-    i = 1
-    while os.path.isfile(path + f"{i}.tch"):
-        i += 1
-    path += f"{i}.tch"
-    return path
-
-
 class ModelConfig(ConfigDict):
     """
     Configuration for model component
     """
-    path: str = get_latest_model()
-    model_type: str = "featurized_model_manifold_network"
-    intermediate_manifolds: List[ManifoldConfig] = [ManifoldConfig(),
-                                                    ManifoldConfig()]
-    intermediate_dims: List[int] = [500, 400]
+    intermediate_manifold: str = "E5"
+    intermediate_layers: int = 2
+    target_manifold: str = "H5"
+
     sparse: bool = True
     double_precision: bool = False
-    manifold_initialization: ManifoldInitializationConfig = \
-        ManifoldInitializationConfig()
+    manifold_initialization: ManifoldInitializationConfig = ManifoldInitializationConfig()
     nonlinearity: str = "elu"
     num_poles: int = 1
-    train_isometry: bool = True
+
+    @property
+    def intermediate_manifolds(self) -> List[ManifoldConfig]:
+        return [ManifoldConfig.from_string(self.intermediate_manifold)] * self.intermediate_layers
+
+    @property
+    def target_manifold_(self) -> ManifoldConfig:
+        return ManifoldConfig.from_string(self.target_manifold)
