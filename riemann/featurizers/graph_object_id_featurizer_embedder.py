@@ -1,4 +1,5 @@
 import io
+import logging
 from typing import Callable
 from zipfile import ZipFile
 
@@ -15,6 +16,8 @@ from ..losses.isometry_loss import isometry_loss
 from ..manifold_initialization import initialize_manifold_tensor
 from ..manifolds import RiemannianManifold
 from ..optimizer_gen import register_parameter_group
+
+logger = logging.getLogger(__name__)
 
 
 class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
@@ -66,6 +69,7 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
 
         in_values = self.featurizer(object_ids, node_ids)
         in_values = in_values.to(next(self.model.parameters()).device)
+
         out_values = self.model(in_values)
         return out_values
 

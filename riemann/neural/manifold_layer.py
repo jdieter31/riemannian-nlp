@@ -1,3 +1,4 @@
+import logging
 from math import sqrt
 
 import torch
@@ -6,6 +7,9 @@ from torch.nn.init import orthogonal_
 
 from ..manifold_tensors import ManifoldParameter
 from ..manifolds import RiemannianManifold
+
+
+logger = logging.getLogger(__name__)
 
 
 class ManifoldLayer(nn.Module):
@@ -61,6 +65,10 @@ class ManifoldLayer(nn.Module):
     def forward(self, x):
         x_expanded = x.unsqueeze(-2)
         log_x = self.in_manifold.log(self.log_base, x_expanded)
+
+        if torch.isnan(log_x).any():
+            logger.warning("Input Manifold layer %s returned NaNs", self.in_manifold)
+
         # Scale by metric tensor (equivalent of lowering indices to get geodesic normal coordinates)
         # log_x = self.in_manifold.lower_indices(self.log_base, log_x)
         log_x_flattened = log_x.view(*x_expanded.size()[:-2], -1)
@@ -71,6 +79,10 @@ class ManifoldLayer(nn.Module):
         # Scale by metric tensor (raise indices)
         # linear_out = self.out_manifold.rgrad(self.exp_base, linear_out)
         exp_out = self.out_manifold.exp(self.exp_base, linear_out)
+
+        if torch.isnan(exp_out).any():
+            logger.warning("Output manifold layer %s returned NaNs", self.out_manifold)
+
         return exp_out
 
     def get_save_data(self):

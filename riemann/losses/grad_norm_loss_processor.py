@@ -1,3 +1,4 @@
+import logging
 from typing import Callable, List
 
 import torch
@@ -7,6 +8,10 @@ from torch.optim.optimizer import Optimizer
 
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
+
+logger = logging.getLogger(__name__)
+
+EPSILON = 1e-8
 
 
 class GradNormLossProcessor(BatchTask):
@@ -72,8 +77,10 @@ class GradNormLossProcessor(BatchTask):
         for loss_func in self.losses:
             # Compute all losses and gradient norms
             loss = loss_func(batch)
-            # Filter nans
-            loss[loss != loss] = 0
+            if torch.isnan(loss).any():
+                logger.warning("Loss{loss_num} is NaN")
+                # Filter nans
+                loss[torch.isnan(loss)] = 0
             wandb.log({f"train/loss{loss_num}": float(loss.cpu().detach().numpy())},
                       step=self.iterations)
 
@@ -106,14 +113,15 @@ class GradNormLossProcessor(BatchTask):
 
         # Compute mathematical quantities from GradNorm paper
         g_norm_avg = torch.prod(g_norms) ** (1 / g_norms.size(-1))  # g_norms.mean()
-        l_hats = losses / self.initial_losses
+        l_hats = (losses + EPSILON) / (self.initial_losses + losses.size(-1) * EPSILON)
         l_hat_avg = l_hats.mean()
-        inv_rates = l_hats / l_hat_avg
+        inv_rates = (l_hats + EPSILON) / (l_hat_avg + EPSILON)
 
         # GradNorm paper says gradients shouldn't be propogated through the
         # target value
         ideal_grad_norms = (g_norm_avg * (inv_rates ** alpha)).detach()
-        self.gradient_weights = ideal_grad_norms / g_norms
+        self.gradient_weights = ideal_grad_norms / (g_norms + EPSILON)
+
         self.gradient_weights = self.gradient_weights.size(0) * \
             self.gradient_weights * \
             torch.tensor(learning_config.loss_priority,
@@ -155,7 +163,7 @@ class GradNormLossProcessor(BatchTask):
         """
         Computes the gradient norms (of self.grad_norm_params) for a loss value
         """
-        total_norm = 0
+        total_norm = 0.
         for param in self.grad_norm_params:
             grad = torch.autograd.grad(loss, param, retain_graph=True,
                                        create_graph=True)

@@ -96,14 +96,17 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    log_eig = torch.log(relu(eigenvalues) + EPSILON)
+    if EPSILON > 0:
+        log_eig = torch.log(relu(eigenvalues) + EPSILON)
+    else:
+        log_eig = torch.log(relu(eigenvalues))
     # Filter potential nans
-    if (log_eig != log_eig).any():
+    if torch.isnan(log_eig).any():
         logger.warning("Found a nan in divergence score")
-        log_eig[log_eig != log_eig] = 0
-    if (log_eig == float('-inf')).any():
+        log_eig[torch.isnan(log_eig)] = 0
+    if torch.isinf(log_eig).any():
         logger.warning("Found a inf in divergence score")
-        log_eig[log_eig == float('-inf')] = 0
+        log_eig[torch.isinf(log_eig)] = 0
     return (log_eig * log_eig).sum(dim=-1)
 
 
