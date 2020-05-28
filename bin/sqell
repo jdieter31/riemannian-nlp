@@ -62,6 +62,14 @@ if [ -n ${SPELL_DEBUG:-} ]; then
   $ROOT/bin/arglist.sh "${args[@]@Q}";
 fi;
 
+# Convert environment variables as well
+envs=(\
+  "EMBEDDING_EVALUATION_DATA_PATH=${EMBEDDING_EVALUATION_DATA_PATH:-SPELL_ROOT/data/evaluation}"\
+  "GLOVE_PATH=${GLOVE_PATH:-SPELL_ROOT/resources/glove.840B.300d.zip}"\
+  )
+# Replace SPELL_ROOT WITH $SPELL_ROOT
+envs=("${envs[@]//SPELL_ROOT/$SPELL_ROOT}");
+
 # Make sure we have an up-to-date Conda file to setup the right Python
 # dependencies
 make -C ${ROOT} .spell-conda.yml
@@ -77,4 +85,4 @@ exec spell run \
         make compile-in-spell;
       popd;
       '$SPELL_ROOT'/bin/arglist.sh '"${args[@]@Q}"';
-      EMBEDDING_EVALUATION_DATA_PATH='$SPELL_ROOT'/data/evaluation PYTHONPATH=$PYTHONPATH:'$SPELL_ROOT' python '"${args[@]@Q}";
+      '${envs[@]}' PYTHONPATH=$PYTHONPATH:'$SPELL_ROOT' python '"${args[@]@Q}";
