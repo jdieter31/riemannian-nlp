@@ -1,3 +1,4 @@
+from .predefined_featurizer import get_predefined_featurizer
 from .random_featurizer import get_random_featurizer
 from .wordnet_featurizer import get_wordnet_featurizer
 from ..config.config_loader import get_config
@@ -21,6 +22,9 @@ def get_featurizer():
             data = get_training_data()
             __featurizer = get_random_featurizer(data)
             __dimension = 2
+            __in_manifold = EuclideanManifold()
+        elif featurizer_string == "predefined":
+            __featurizer, __dimension = get_predefined_featurizer()
             __in_manifold = EuclideanManifold()
         elif featurizer_string == "wordnet":
             data = get_training_data()

@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from ..config import ConfigDict
 
@@ -34,3 +35,4 @@ class DataConfig(ConfigDict):
     split_by_edges: bool = False
 
     featurizer: str = "wordnet"
+    predefined_features_path: Optional[str] = None
