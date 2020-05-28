@@ -10,7 +10,8 @@ import numpy as np
 from .token_mapper import TokenMapper, default_token_mapper, HashTokenMapping
 
 root_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../..")
-default_glove_path = os.path.join(root_path, 'resources/glove.840B.300d.zip')
+DEFAULT_GLOVE_PATH = os.path.join(root_path, 'resources/glove.840B.300d.zip')
+GLOVE_PATH = os.environ.get("GLOVE_PATH", DEFAULT_GLOVE_PATH)
 
 
 class Glove:
@@ -85,7 +86,7 @@ class Glove:
         :param embedding_file_: the raw, original format Glove embeddings
         :param token_mapper: the token mapper to use, if None, it defaults to nn.special_token_mapper
         """
-        embedding_file: str = embedding_file_ or default_glove_path
+        embedding_file: str = embedding_file_ or GLOVE_PATH
         token_mapper = token_mapper or default_token_mapper()
 
         with ZipFile(embedding_file) as zf:
@@ -135,7 +136,7 @@ class Glove:
         :param token_mapper: the token mapper to use, if None, it defaults to nn.special_token_mapper
         """
 
-        embedding_file: str = default_glove_path if not embedding_file_ else embedding_file_
+        embedding_file: str = GLOVE_PATH if not embedding_file_ else embedding_file_
         token_mapper = default_token_mapper() if token_mapper is None else token_mapper
         glove_name = os.path.splitext(os.path.basename(embedding_file))[0]
         print('Loading the embeddings from binary file ({})'.format(embedding_file))
