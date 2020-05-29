@@ -15,11 +15,11 @@ class DataConfig(ConfigDict):
     """
     dataset_name: str = "mammals"
     train_path: str = os.path.join(root_path, 
-            "data/mammals/mammals_train.csv")
+            "data/mammals-hypernymy/train.csv")
     eval_path: str = os.path.join(root_path,
-            "data/mammals/mammals_eval.csv")
+            "data/mammals-hypernymy/eval.csv")
     test_path: str = os.path.join(root_path,
-            "data/mammals/mammals_test.csv")
+            "data/mammals-hypernymy/test.csv")
     graph_data_type: str = "edge"
     graph_data_format: str = "hdf5"
     symmetrize: bool = False
@@ -30,7 +30,7 @@ class DataConfig(ConfigDict):
     generate_test_set: bool = True
     full_path: str = os.path.join(root_path,
                                   "data/mammals.csv")
-    split_seed: int = 14534482
+    split_seed: int = 14534682
     split_size: float = 0.1
     split_by_edges: bool = False
 

@@ -12,15 +12,17 @@ class ModelConfig(ConfigDict):
     """
     Configuration for model component
     """
-    intermediate_manifold: str = "E5"
+    intermediate_manifold: str = "E50"
     intermediate_layers: int = 2
-    target_manifold: str = "H5"
+    target_manifold: str = "H50"
 
     sparse: bool = True
     double_precision: bool = False
     manifold_initialization: ManifoldInitializationConfig = ManifoldInitializationConfig()
     nonlinearity: str = "elu"
     num_poles: int = 1
+
+    save_dir: str = "state/" 
 
     @property
     def intermediate_manifolds(self) -> List[ManifoldConfig]:

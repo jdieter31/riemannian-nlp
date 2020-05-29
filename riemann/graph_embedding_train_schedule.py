@@ -52,6 +52,10 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
             n_tasks = len(cast(Sized, data_iterator))
             yield data_iterator, (self._get_tasks_for_batch() for _ in range(n_tasks))
 
+        model_config = get_config().model
+        if model_config.save_dir is not None:
+            self.model.to_file(f"{model_confg.save_dir}end_training.zip")
+
 
     def _get_loss_processor(self):
         if self._loss_processor is None:

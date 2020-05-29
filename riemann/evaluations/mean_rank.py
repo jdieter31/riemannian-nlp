@@ -7,9 +7,9 @@ from ..data.batching import BatchTask
 from ..data.data_loader import get_training_data, get_eval_data
 from ..data.graph_data_batch import GraphDataBatch
 from ..model import get_model
-from ..train import TrainSchedule
 
 step_num = None
+bests = {}
 
 
 class MeanRankEvaluator(BatchTask):
@@ -76,8 +76,10 @@ class MeanRankEvaluator(BatchTask):
         wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
         wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
 
+        return mean_rank, mean_rec_rank, hitsat10
 
-def run_evaluation(train_schedule: TrainSchedule,
+
+def run_evaluation(train_schedule,
                    log_name="",
                    reconstruction=False,
                    step=None):
@@ -94,6 +96,7 @@ def run_evaluation(train_schedule: TrainSchedule,
         step (int): Step number for logging to wandb
     """
     global step_num
+    global bests
     step_num = step
 
     sampling_config = get_config().sampling
@@ -115,4 +118,12 @@ def run_evaluation(train_schedule: TrainSchedule,
     train_schedule.run_epoch(epoch,
                              prog_desc=f"{log_name}",
                              count_iterations=False)
-    mean_rank_evaluator.finish_computations_and_log(log_name)
+    mean_rank, mean_rec_rank, hitsat10 = mean_rank_evaluator.finish_computations_and_log(log_name)
+
+    if log_name not in bests or bests[log_name] > mean_rank:
+        bests[log_name] = mean_rank
+        model_config = get_config().model
+        wandb.run.summary[f"best_{log_name}"] = mean_rank
+        if  model_config.save_dir is not None:
+            train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}.zip")
+
