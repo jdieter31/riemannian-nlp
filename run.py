@@ -17,13 +17,14 @@ from riemann.visualize import plot
 
 
 def train(args):
-    # Initialize wandb dashboard
-    wandb.init(project="retrofitting-manifolds")
-
     # Initialize Config
     initialize_config(args.config_file,
                       load_config=(args.config_file is not None),
                       config_updates=ConfigDictParser.parse(args.config_updates))
+    # Log this configuration to wandb
+    # Initialize wandb dashboard
+    wandb.init(project="retrofitting-manifolds", config=get_config().as_json())
+
     # This command just preloads the training data.
     get_training_data()
 
