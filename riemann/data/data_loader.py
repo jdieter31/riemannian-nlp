@@ -36,10 +36,8 @@ def _load_data_if_needed():
             else:
                 path = data_config.train_path
 
-
-            idx, objects, weights = \
-                load_csv_edge_list(path, data_config.symmetrize,
-                                   delimiter=data_config.delimiter)
+            idx, objects, weights = load_csv_edge_list(path, data_config.symmetrize,
+                                                       delimiter=data_config.delimiter)
         else:
             # TODO This needs to be updated for handling train eval splits
             idx, objects, weights \
