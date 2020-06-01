@@ -77,7 +77,7 @@ class MeanRankEvaluator(BatchTask):
         n_neighbors = (train_distances < 2).sum(dim=-1)
 
         for row in (sorted_indices < n_neighbors.unsqueeze(1)):
-            ranks = (row.nonzero().squeeze() + 1).cpu().to(torch.float32)
+            ranks = (row.nonzero().squeeze(-1) + 1).cpu().to(torch.float32)
             if len(ranks) > 0:
                 adjusted_ranks = (ranks - torch.arange(len(ranks), dtype=torch.float32))
                 self.hitsat10 += (ranks <= 10).sum().numpy()
