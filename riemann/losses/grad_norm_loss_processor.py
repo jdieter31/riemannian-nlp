@@ -8,6 +8,7 @@ from torch.optim.optimizer import Optimizer
 
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
+from ..optimizer_gen import get_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -132,11 +133,18 @@ class GradNormLossProcessor(BatchTask):
                            float(self.gradient_weights[i].cpu().detach().numpy())},
                       step=self.iterations)
 
-        total_loss = 0.1 * (self.gradient_weights * losses).sum()
+        total_loss = (self.gradient_weights * losses).sum()
 
         total_loss.backward()
         # Main optimization step
         self.optimizer.step()
+        # Hacky way of logging learning rate
+        for param_group in self.optimizer.param_groups:
+            wandb.log({"train/lr": param_group['lr']},
+                        step=self.iterations)
+            break
+
+        get_scheduler().step(total_loss.detach())
 
         """
         # L1 Loss for optimizing loss weightings

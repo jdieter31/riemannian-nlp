@@ -1,11 +1,13 @@
 from typing import List
 
 from torch.optim.optimizer import Optimizer
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .config.config_loader import get_config
 from .rsgd_multithread import RiemannianSGD
 
 optimizer = None
+scheduler = None
 
 parameter_groups: List = []
 
@@ -28,10 +30,29 @@ def get_optimizer() -> Optimizer:
     """
 
     global optimizer
+    global scheduler
 
     learning_config = get_config().learning
 
     if optimizer is None:
         optimizer = RiemannianSGD(parameter_groups, lr=learning_config.lr)
+        scheduler = ReduceLROnPlateau(optimizer,
+                                      patience=learning_config.patience,
+                                      threshold=learning_config.threshold)
 
     return optimizer
+
+def get_scheduler():
+
+    global scheduler
+    global optimizer
+
+    learning_config = get_config().learning
+
+    if optimizer is None:
+        optimizer = RiemannianSGD(parameter_groups, lr=learning_config.lr)
+        scheduler = ReduceLROnPlateau(optimizer,
+                                      patience=learning_config.patience,
+                                      threshold=learning_config.threshold)
+
+    return scheduler

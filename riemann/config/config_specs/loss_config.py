@@ -19,7 +19,7 @@ class LossConfig(ConfigDict):
         )
 
     #: If true, we'll use the conformality regularizer
-    use_conformality_regularizer: bool = False
+    use_conformality_regularizer: bool = True
     #: Confirmality ranges between 1 and 0; a value of 1 is equivalent to being isometric, while
     #: a value of 0 is unbounded conformality; an intermediate value is bounded.
     conformality: float = 1.0

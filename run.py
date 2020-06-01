@@ -12,7 +12,7 @@ import wandb
 from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model
-from riemann.data.data_loader import get_training_data
+from riemann.data.data_loader import get_training_data, get_eval_data
 from riemann.visualize import plot
 from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
 from riemann.config.config_loader import get_config
@@ -27,9 +27,8 @@ def train(args):
     # Initialize wandb dashboard
     config = get_config()
     wandb.init(project="retrofitting-manifolds",
-               name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}C{config.loss.conformality}",
                config=get_config().as_json(),
-               group="Nouns50DNoLog")
+               group="NounsLearningSweep")
 
     # This command just preloads the training data.
     get_training_data()

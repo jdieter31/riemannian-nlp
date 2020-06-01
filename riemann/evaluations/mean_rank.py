@@ -98,7 +98,7 @@ class MeanRankEvaluator(BatchTask):
             wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
             wandb.log({f"{log_name}/map": mean_map}, step=step_num)
 
-        return mean_rank, mean_rec_rank, hitsat10
+        return mean_rank, mean_rec_rank, hitsat10, mean_map
 
 
 def run_evaluation(train_schedule=None,
@@ -146,7 +146,7 @@ def run_evaluation(train_schedule=None,
     train_schedule.run_epoch(epoch,
                              prog_desc=f"{log_name}",
                              count_iterations=False)
-    mean_rank, mean_rec_rank, hitsat10 = \
+    mean_rank, mean_rec_rank, hitsat10, mean_map = \
             mean_rank_evaluator.finish_computations_and_log(
                 log_name, log_results=not print_evaluation)
 
@@ -154,6 +154,7 @@ def run_evaluation(train_schedule=None,
         print(f"{log_name}/mean_rank: {mean_rank}")
         print(f"{log_name}/mean_rec_rank: {mean_rec_rank}")
         print(f"{log_name}/hitsat10: {hitsat10}")
+        print(f"{log_name}/mean_map: {mean_map}")
     else:
         if f"{log_name}/mean_rank" not in bests or bests[f"{log_name}/mean_rank"] > mean_rank:
             bests[f"{log_name}/mean_rank"] = mean_rank
@@ -175,3 +176,10 @@ def run_evaluation(train_schedule=None,
             wandb.run.summary[f"best_{log_name}/mean_rec_rank"] = mean_rec_rank
             if  model_config.save_dir is not None:
                 train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}_mean_rec_rank.zip")
+
+        if f"{log_name}/mean_map" not in bests or bests[f"{log_name}/mean_map"] < mean_map:
+            bests[f"{log_name}/mean_map"] = mean_map
+            model_config = get_config().model
+            wandb.run.summary[f"best_{log_name}/mean_map"] = mean_map
+            if  model_config.save_dir is not None:
+                train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}_mean_map.zip")
