@@ -85,18 +85,20 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
 
         if eval_config.eval_link_pred:
             def task():
-                print(f"running lnk_pred evaluation {self.iteration_num}")
-                eval_data = get_eval_data()
-                eval_data.add_manifold_nns(self.model)
+                sampling_config = get_config().sampling
+                if sampling_config.eval_sampling_config.n_manifold_neighbors > 0:
+                    eval_data = get_eval_data()
+                    eval_data.add_manifold_nns(self.model)
                 run_mean_rank_evaluation(self, "lnk_pred",
                                          step=self.iteration_num)
             self.add_cyclic_task(task, eval_config.link_pred_frequency)
 
         if eval_config.eval_reconstruction:
             def task():
-                print(f"running reconst evaluation {self.iteration_num}")
-                train_data = get_training_data()
-                train_data.add_manifold_nns(self.model)
+                sampling_config = get_config().sampling
+                if sampling_config.eval_sampling_config.n_manifold_neighbors > 0:
+                    train_data = get_training_data()
+                    train_data.add_manifold_nns(self.model)
                 run_mean_rank_evaluation(self, "reconstr",
                                             step=self.iteration_num,
                                             reconstruction=True)
