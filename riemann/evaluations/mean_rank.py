@@ -13,6 +13,27 @@ step_num = None
 bests = {}
 
 
+def compute_map(ranks):
+    """
+    Returns the Mean Averaged Precision given a list of ranks for positive instances.
+    :param ranks: an array with the rank indices of positive elements.
+    :return:
+    """
+    # The precision at k is true positives / total predictions;
+    # the numerator is the index in `ranks`, the denominator is the value of rank
+    precision_at_k = torch.arange(1, len(ranks)+1, dtype=torch.float32)/ranks
+    return precision_at_k.mean()
+
+
+def compute_mrr(ranks, adjust_ranks: bool = True):
+    # The rank at an index ignores positive elements
+    # (hence subtracting the number of positive elements) here.
+    if adjust_ranks:
+        ranks = ranks - torch.arange(len(ranks), dtype=torch.float32)
+    rr = 1. / ranks
+    return rr.mean()
+
+
 class MeanRankEvaluator(BatchTask):
 
     def __init__(self):
@@ -21,8 +42,9 @@ class MeanRankEvaluator(BatchTask):
         """
 
         self.ranks_computed = 0
-        self.rank_sum = 0
-        self.rec_rank_sum = 0
+        self.mean_rank_sum = 0
+        self.mrr_sum = 0
+        self.map_sum = 0
         self.hitsat10 = 0
 
     def process_batch(self, batch: GraphDataBatch):
@@ -51,33 +73,30 @@ class MeanRankEvaluator(BatchTask):
             batch.get_tensors()["train_distances"].to(main_vertices.device)
 
         sorted_indices = manifold_dists.argsort(dim=-1)
-        manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
+        #: Anything with train_distance >=2 is a negative example
         n_neighbors = (train_distances < 2).sum(dim=-1)
 
-        batch_nums, neighbor_ranks = (sorted_indices <
-                                      n_neighbors.unsqueeze(1)).nonzero(as_tuple=True)
-        neighbor_ranks += 1
+        for row in (sorted_indices < n_neighbors.unsqueeze(1)):
+            ranks = (row.nonzero().squeeze() + 1).cpu().to(torch.float32)
+            adjusted_ranks = (ranks - torch.arange(len(ranks), dtype=torch.float32))
 
-        adjust_indices = torch.arange(n_neighbors.max())
-        neighbor_adjustements = torch.cat([adjust_indices[:n_neighbors[i]] \
-                                           for i in range(n_neighbors.size(0))])
-        neighbor_ranks -= neighbor_adjustements.to(neighbor_ranks.device)
-        neighbor_ranks = neighbor_ranks.float()
-        rec_ranks = 1 / neighbor_ranks
-        self.hitsat10 += (neighbor_ranks <= 10).sum().cpu().numpy()
-        self.rank_sum += neighbor_ranks.sum().cpu().numpy()
-        self.rec_rank_sum += rec_ranks.sum().cpu().numpy()
-        self.ranks_computed += neighbor_ranks.size(0)
+            self.hitsat10 += (ranks <= 10).sum().numpy()
+            self.mean_rank_sum += adjusted_ranks.mean().numpy()
+            self.mrr_sum += compute_mrr(adjusted_ranks, adjust_ranks=False)
+            self.map_sum += compute_map(ranks)
+            self.ranks_computed += 1
 
     def finish_computations_and_log(self, log_name, log_results=True):
-        mean_rank = self.rank_sum / self.ranks_computed
-        mean_rec_rank = self.rec_rank_sum / self.ranks_computed
         hitsat10 = self.hitsat10 / self.ranks_computed
+        mean_rank = self.mean_rank_sum / self.ranks_computed
+        mean_rec_rank = self.mrr_sum / self.ranks_computed
+        mean_map = self.map_sum / self.ranks_computed
 
         if log_results:
+            wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
             wandb.log({f"{log_name}/mean_rank": mean_rank}, step=step_num)
             wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
-            wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
+            wandb.log({f"{log_name}/map": mean_map}, step=step_num)
 
         return mean_rank, mean_rec_rank, hitsat10
 

@@ -11,8 +11,8 @@ import wandb
 
 from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
-from riemann.model import get_model, torch
-from riemann.data.data_loader import get_training_data, get_eval_data
+from riemann.model import get_model
+from riemann.data.data_loader import get_training_data
 from riemann.visualize import plot
 from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
 from riemann.config.config_loader import get_config
@@ -25,8 +25,11 @@ def train(args):
                       config_updates=ConfigDictParser.parse(args.config_updates))
     # Log this configuration to wandb
     # Initialize wandb dashboard
-    wandb.init(project="retrofitting-manifolds", config=get_config().as_json(),
-              group="Nouns50DNoLog")
+    config = get_config()
+    wandb.init(project="retrofitting-manifolds",
+               name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}C{config.loss.conformality}",
+               config=get_config().as_json(),
+               group="Nouns50DNoLog")
 
     # This command just preloads the training data.
     get_training_data()
@@ -47,7 +50,7 @@ def eval_model(args):
     initialize_config(args.config_file,
                       load_config=(args.config_file is not None),
                       config_updates=ConfigDictParser.parse(args.config_updates))
-    
+
     eval_config = get_config().eval
     model = get_model()
 
@@ -62,7 +65,7 @@ def eval_model(args):
         if eval_data is not None:
             # Hacky way of not having to generate this again
             eval_data.manifold_nns = train_data.manifold_nns
-    
+
     if eval_config.eval_link_pred:
         run_mean_rank_evaluation(None, "lnk_pred")
     if eval_config.eval_reconstruction:
