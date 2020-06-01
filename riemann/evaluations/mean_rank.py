@@ -21,11 +21,17 @@ def compute_map(ranks):
     """
     # The precision at k is true positives / total predictions;
     # the numerator is the index in `ranks`, the denominator is the value of rank
+    if ranks.shape[0] == 0:
+        return 0.
+
     precision_at_k = torch.arange(1, len(ranks)+1, dtype=torch.float32)/ranks
     return precision_at_k.mean()
 
 
 def compute_mrr(ranks, adjust_ranks: bool = True):
+    if ranks.shape[0] == 0:
+        return 0.
+
     # The rank at an index ignores positive elements
     # (hence subtracting the number of positive elements) here.
     if adjust_ranks:
