@@ -12,9 +12,12 @@ class ModelConfig(ConfigDict):
     """
     Configuration for model component
     """
-    intermediate_manifold: str = "E50"
+    intermediate_manifold: str = "E1600"
     intermediate_layers: int = 2
-    target_manifold: str = "H50"
+    target_manifold: str = "S60"
+    # If this is enabled target_manifold must be the same as the featurizer -
+    # the model will act as the identity
+    baseline_mode: bool = False
 
     sparse: bool = True
     double_precision: bool = False

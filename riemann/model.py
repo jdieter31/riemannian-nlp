@@ -20,10 +20,11 @@ def get_model() -> GraphEmbedder:
 
     data = get_training_data()
 
+    model_config = get_config().model
+    target_manifold = model_config.target_manifold_.get_manifold_instance()
+    
     if __model is None:
-        model_config = get_config().model
 
-        target_manifold = model_config.target_manifold_.get_manifold_instance()
         target_manifold_dim = model_config.target_manifold_.dimension
 
         featurizer, featurizer_dim, featurizer_manifold = get_featurizer()
@@ -48,6 +49,11 @@ def get_model() -> GraphEmbedder:
                 target_manifold,
                 target_manifold_dim,
             )
+
+    if model_config.baseline_mode:
+        baseline_model = __model.get_featurizer_graph_embedder()
+        assert type(target_manifold) is type(baseline_model.get_manifold())
+        return baseline_model
 
     return __model
 

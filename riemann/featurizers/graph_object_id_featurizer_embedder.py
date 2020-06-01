@@ -89,23 +89,37 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
                 in_values = in_values.to(next(outer_class.model.parameters()).device)
                 return in_values
 
+            def get_manifold(self):
+                return outer_class.in_manifold
+
         return FeaturizedGraphEmbedder()
 
     def get_losses(self):
         loss_config = get_config().loss
         if loss_config.use_conformality_regularizer:
             def batch_isometry_loss(data_batch: GraphDataBatch):
-                random_samples = loss_config.random_isometry_samples
-                initialization = \
-                    loss_config.random_isometry_initialization.get_initialization_dict()
 
-                random_samples = torch.empty(random_samples,
-                                             self.in_dimension,
-                                             dtype=torch.float,
-                                             device=get_device())
-                initialize_manifold_tensor(random_samples, self.in_manifold,
-                                           initialization)
-                return isometry_loss(self.model, random_samples,
+                sample_num = loss_config.isometry_samples
+                if loss_config.sample_from_batch:
+                    vertices = data_batch.get_tensors()["vertices"]
+                    perm = torch.randperm(vertices.size(0))
+                    idx = perm[:min(vertices.size(0),
+                                    loss_config.isometry_samples)]
+                    sample_indices = vertices[idx]
+                    samples = \
+                        self.get_featurizer_graph_embedder().embed_nodes(sample_indices)
+                    
+                else:
+                    initialization = \
+                        loss_config.random_isometry_initialization.get_initialization_dict()
+
+                    samples = torch.empty(sample_num,
+                                          self.in_dimension,
+                                          dtype=torch.float,
+                                          device=get_device())
+                    initialize_manifold_tensor(samples, self.in_manifold,
+                                            initialization)
+                return isometry_loss(self.model, samples,
                                      self.in_manifold, self.out_manifold,
                                      self.out_dimension, loss_config.conformality
                                      )

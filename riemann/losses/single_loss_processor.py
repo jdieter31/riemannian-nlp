@@ -38,6 +38,7 @@ class SingleLossProcessor(BatchTask):
 
         self.optimizer.zero_grad()
         loss.backward()
+        print(f"optimization step {self.iterations}")
         self.optimizer.step()
 
         wandb.log({"train/loss": float(loss.cpu().detach().numpy())},

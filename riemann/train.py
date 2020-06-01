@@ -58,9 +58,6 @@ class TrainSchedule(abc.ABC):
         for batch, tasks in tqdm(zip(data_iterator, task_iterator),
                                  total=n_batches,
                                  desc=prog_desc, dynamic_ncols=True):
-            for task in tasks:
-                task.process_batch(batch)
-
             if count_iterations:
                 for task, repeat_every, cycle_on_iterations in \
                         self.cyclic_tasks:
@@ -72,6 +69,10 @@ class TrainSchedule(abc.ABC):
                     if self.iteration_num % repeat_every == 0:
                         task()
 
+            for task in tasks:
+                task.process_batch(batch)
+
+            if count_iterations:
                 self.iteration_num += 1
 
     def add_cyclic_task(self, task: Callable[[], None], repeat_every: int,
@@ -115,3 +116,15 @@ class TrainSchedule(abc.ABC):
 
                 if self.epoch_num % repeat_every == 0:
                     task()
+
+class DummyTrainSchedule(TrainSchedule):
+
+    def __init__(self):
+        super(DummyTrainSchedule, self).__init__()
+    
+    def epoch_iterator(self):
+        return
+        yield
+
+
+

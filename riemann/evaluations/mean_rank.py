@@ -7,6 +7,7 @@ from ..data.batching import BatchTask
 from ..data.data_loader import get_training_data, get_eval_data
 from ..data.graph_data_batch import GraphDataBatch
 from ..model import get_model
+from ..train import DummyTrainSchedule
 
 step_num = None
 bests = {}
@@ -52,6 +53,7 @@ class MeanRankEvaluator(BatchTask):
         sorted_indices = manifold_dists.argsort(dim=-1)
         manifold_dists_sorted = torch.gather(manifold_dists, -1, sorted_indices)
         n_neighbors = (train_distances < 2).sum(dim=-1)
+
         batch_nums, neighbor_ranks = (sorted_indices <
                                       n_neighbors.unsqueeze(1)).nonzero(as_tuple=True)
         neighbor_ranks += 1
@@ -67,19 +69,20 @@ class MeanRankEvaluator(BatchTask):
         self.rec_rank_sum += rec_ranks.sum().cpu().numpy()
         self.ranks_computed += neighbor_ranks.size(0)
 
-    def finish_computations_and_log(self, log_name):
+    def finish_computations_and_log(self, log_name, log_results=True):
         mean_rank = self.rank_sum / self.ranks_computed
         mean_rec_rank = self.rec_rank_sum / self.ranks_computed
         hitsat10 = self.hitsat10 / self.ranks_computed
 
-        wandb.log({f"{log_name}/mean_rank": mean_rank}, step=step_num)
-        wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
-        wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
+        if log_results:
+            wandb.log({f"{log_name}/mean_rank": mean_rank}, step=step_num)
+            wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
+            wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
 
         return mean_rank, mean_rec_rank, hitsat10
 
 
-def run_evaluation(train_schedule,
+def run_evaluation(train_schedule=None,
                    log_name="",
                    reconstruction=False,
                    step=None):
@@ -98,6 +101,12 @@ def run_evaluation(train_schedule,
     global step_num
     global bests
     step_num = step
+
+    if train_schedule is None:
+        print_evaluation = True
+        train_schedule = DummyTrainSchedule()
+    else:
+        print_evaluation = False
 
     sampling_config = get_config().sampling
     eval_config = get_config().eval
@@ -118,12 +127,32 @@ def run_evaluation(train_schedule,
     train_schedule.run_epoch(epoch,
                              prog_desc=f"{log_name}",
                              count_iterations=False)
-    mean_rank, mean_rec_rank, hitsat10 = mean_rank_evaluator.finish_computations_and_log(log_name)
+    mean_rank, mean_rec_rank, hitsat10 = \
+            mean_rank_evaluator.finish_computations_and_log(
+                log_name, log_results=not print_evaluation)
 
-    if log_name not in bests or bests[log_name] > mean_rank:
-        bests[log_name] = mean_rank
-        model_config = get_config().model
-        wandb.run.summary[f"best_{log_name}"] = mean_rank
-        if  model_config.save_dir is not None:
-            train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}.zip")
+    if print_evaluation:
+        print(f"{log_name}/mean_rank: {mean_rank}")
+        print(f"{log_name}/mean_rec_rank: {mean_rec_rank}")
+        print(f"{log_name}/hitsat10: {hitsat10}")
+    else:
+        if f"{log_name}/mean_rank" not in bests or bests[f"{log_name}/mean_rank"] > mean_rank:
+            bests[f"{log_name}/mean_rank"] = mean_rank
+            model_config = get_config().model
+            wandb.run.summary[f"best_{log_name}/mean_rank"] = mean_rank
+            if  model_config.save_dir is not None:
+                train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}_mean_rank.zip")
 
+        if f"{log_name}/hitsat10" not in bests or bests[f"{log_name}/hitsat10"] < hitsat10:
+            bests[f"{log_name}/hitsat10"] = hitsat10
+            model_config = get_config().model
+            wandb.run.summary[f"best_{log_name}/hitsat10"] = hitsat10
+            if  model_config.save_dir is not None:
+                train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}_hitsat10.zip")
+
+        if f"{log_name}/mean_rec_rank" not in bests or bests[f"{log_name}/mean_rec_rank"] < mean_rec_rank:
+            bests[f"{log_name}/mean_rec_rank"] = mean_rec_rank
+            model_config = get_config().model
+            wandb.run.summary[f"best_{log_name}/mean_rec_rank"] = mean_rec_rank
+            if  model_config.save_dir is not None:
+                train_schedule.model.to_file(f"{model_config.save_dir}best_{log_name}_mean_rec_rank.zip")

@@ -54,7 +54,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
 
         model_config = get_config().model
         if model_config.save_dir is not None:
-            self.model.to_file(f"{model_confg.save_dir}end_training.zip")
+            self.model.to_file(f"{model_config.save_dir}end_training.zip")
 
 
     def _get_loss_processor(self):
@@ -84,14 +84,22 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
         eval_config = get_config().eval
 
         if eval_config.eval_link_pred:
-            task = lambda: run_mean_rank_evaluation(self, "lnk_pred",
-                                                    step=self.iteration_num)
+            def task():
+                print(f"running lnk_pred evaluation {self.iteration_num}")
+                eval_data = get_eval_data()
+                eval_data.add_manifold_nns(self.model)
+                run_mean_rank_evaluation(self, "lnk_pred",
+                                         step=self.iteration_num)
             self.add_cyclic_task(task, eval_config.link_pred_frequency)
 
         if eval_config.eval_reconstruction:
-            task = lambda: run_mean_rank_evaluation(self, "reconstr",
-                                                    step=self.iteration_num,
-                                                    reconstruction=True)
+            def task():
+                print(f"running reconst evaluation {self.iteration_num}")
+                train_data = get_training_data()
+                train_data.add_manifold_nns(self.model)
+                run_mean_rank_evaluation(self, "reconstr",
+                                            step=self.iteration_num,
+                                            reconstruction=True)
             self.add_cyclic_task(task, eval_config.reconstruction_frequency)
 
         if eval_config.make_visualization and isinstance(self.model,
@@ -112,11 +120,6 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
             def task():
                 train_data = get_training_data()
                 train_data.add_manifold_nns(self.model)
-
-                eval_data = get_eval_data()
-                if eval_data is not None:
-                    # Hacky way of not having to generate this again
-                    eval_data.manifold_nns = train_data.manifold_nns
 
             self.add_cyclic_task(task,
                                  sampling_config.manifold_neighbor_resampling_rate,

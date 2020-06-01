@@ -12,8 +12,10 @@ import wandb
 from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model, torch
-from riemann.data.data_loader import get_training_data
+from riemann.data.data_loader import get_training_data, get_eval_data
 from riemann.visualize import plot
+from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
+from riemann.config.config_loader import get_config
 
 
 def train(args):
@@ -23,7 +25,8 @@ def train(args):
                       config_updates=ConfigDictParser.parse(args.config_updates))
     # Log this configuration to wandb
     # Initialize wandb dashboard
-    wandb.init(project="retrofitting-manifolds", config=get_config().as_json())
+    wandb.init(project="retrofitting-manifolds", config=get_config().as_json(),
+              group="Nouns50DNoLog")
 
     # This command just preloads the training data.
     get_training_data()
@@ -38,6 +41,34 @@ def train(args):
     # Save the model
     if args.model_file:
         model.to_file(args.model_file)
+
+def eval_model(args):
+    # Initialize Config
+    initialize_config(args.config_file,
+                      load_config=(args.config_file is not None),
+                      config_updates=ConfigDictParser.parse(args.config_updates))
+    
+    eval_config = get_config().eval
+    model = get_model()
+
+    sampling_config = get_config().sampling
+    if sampling_config.train_sampling_config.n_manifold_neighbors > 0 or \
+            sampling_config.eval_sampling_config.n_manifold_neighbors > 0:
+
+        train_data = get_training_data()
+        train_data.add_manifold_nns(model)
+
+        eval_data = get_eval_data()
+        if eval_data is not None:
+            # Hacky way of not having to generate this again
+            eval_data.manifold_nns = train_data.manifold_nns
+    
+    if eval_config.eval_link_pred:
+        run_mean_rank_evaluation(None, "lnk_pred")
+    if eval_config.eval_reconstruction:
+        run_mean_rank_evaluation(None, "reconstr", reconstruction=True)
+
+
 
 
 def plot_transformation(args):
@@ -69,6 +100,17 @@ if __name__ == "__main__":
     command_parser.add_argument('model_file', type=str,
                                 help="File to load model from")
     command_parser.set_defaults(func=plot_transformation)
+
+    command_parser = subparsers.add_parser('eval')
+    command_parser.add_argument('-u', '--config_updates', type=str, default="",
+                                help="Extra configuration to inject into config dict")
+    command_parser.add_argument('-f', '--config_file', type=str, default=None,
+                                help="File to load config from")
+    command_parser.add_argument('-m', '--model_file', type=str, default=None,
+                                help="Path to save model at")
+
+    command_parser.set_defaults(func=eval_model)
+
 
     ARGS = parser.parse_args()
     if ARGS.func is None:

@@ -15,4 +15,4 @@ class LearningConfig(ConfigDict):
 
     loss_priority: List[float] = [0.3, 0.7]
 
-    lr: float = 0.00003
+    lr: float = 0.00005

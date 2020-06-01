@@ -15,7 +15,7 @@ EPSILON = 1e-8
 
 def graph_manifold_margin_loss(model: GraphEmbedder, batch: GraphDataBatch,
                                manifold: RiemannianManifold, margin=0.01,
-                               scale_function=lambda x: torch.log(x + EPSILON)):
+                               scale_function=lambda x: x):
     """
     See write up for details on this loss function -- encourages embeddings to
     preserve graph topology

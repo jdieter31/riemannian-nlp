@@ -13,13 +13,13 @@ class DataConfig(ConfigDict):
     """
     Configuration for data component
     """
-    dataset_name: str = "mammals"
+    dataset_name: str = "nouns"
     train_path: str = os.path.join(root_path, 
-            "data/mammals-hypernymy/train.csv")
+            "data/nouns-hypernymy/train.csv")
     eval_path: str = os.path.join(root_path,
-            "data/mammals-hypernymy/eval.csv")
+            "data/nouns-hypernymy/eval.csv")
     test_path: str = os.path.join(root_path,
-            "data/mammals-hypernymy/test.csv")
+            "data/nouns-hypernymy/test.csv")
     graph_data_type: str = "edge"
     graph_data_format: str = "hdf5"
     symmetrize: bool = False
@@ -29,7 +29,7 @@ class DataConfig(ConfigDict):
     generate_eval_split: bool = False
     generate_test_set: bool = True
     full_path: str = os.path.join(root_path,
-                                  "data/mammals.csv")
+                                  "data/nouns.csv")
     split_seed: int = 14534682
     split_size: float = 0.1
     split_by_edges: bool = False
