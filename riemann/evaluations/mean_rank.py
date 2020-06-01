@@ -21,17 +21,11 @@ def compute_map(ranks):
     """
     # The precision at k is true positives / total predictions;
     # the numerator is the index in `ranks`, the denominator is the value of rank
-    if ranks.shape[0] == 0:
-        return 0.
-
     precision_at_k = torch.arange(1, len(ranks)+1, dtype=torch.float32)/ranks
     return precision_at_k.mean()
 
 
 def compute_mrr(ranks, adjust_ranks: bool = True):
-    if ranks.shape[0] == 0:
-        return 0.
-
     # The rank at an index ignores positive elements
     # (hence subtracting the number of positive elements) here.
     if adjust_ranks:
@@ -84,12 +78,12 @@ class MeanRankEvaluator(BatchTask):
 
         for row in (sorted_indices < n_neighbors.unsqueeze(1)):
             ranks = (row.nonzero().squeeze() + 1).cpu().to(torch.float32)
-            adjusted_ranks = (ranks - torch.arange(len(ranks), dtype=torch.float32))
-
-            self.hitsat10 += (ranks <= 10).sum().numpy()
-            self.mean_rank_sum += adjusted_ranks.mean().numpy()
-            self.mrr_sum += compute_mrr(adjusted_ranks, adjust_ranks=False)
-            self.map_sum += compute_map(ranks)
+            if len(ranks) > 0:
+                adjusted_ranks = (ranks - torch.arange(len(ranks), dtype=torch.float32))
+                self.hitsat10 += (ranks <= 10).sum().numpy()
+                self.mean_rank_sum += adjusted_ranks.mean().numpy()
+                self.mrr_sum += compute_mrr(adjusted_ranks, adjust_ranks=False)
+                self.map_sum += compute_map(ranks)
             self.ranks_computed += 1
 
     def finish_computations_and_log(self, log_name, log_results=True):
