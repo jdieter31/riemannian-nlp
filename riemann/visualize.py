@@ -5,13 +5,22 @@ import torch
 from matplotlib.figure import Figure
 from graph_tool import Graph
 
+from . import PoincareBall
 from .data.graph_dataset import GraphDataset
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from .manifolds import SphericalManifold
 
 
 def draw_manifold_wireframe(ax, manifold):
+    if isinstance(manifold, PoincareBall):
+        # (Must be H2)
+        # We'll just draw the outer circle
+        ax.add_artist(plt.Circle((0, 0), 1., color='b', fill=False))
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+
     if isinstance(manifold, SphericalManifold):
+        # (Must be S2)
         u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
         x = np.cos(u) * np.sin(v)
         y = np.sin(u) * np.sin(v)
@@ -24,6 +33,8 @@ def draw_wireframe(ax, model, inputs):
     min_y = np.min(inputs[:, 1])
     max_x = np.max(inputs[:, 0])
     max_y = np.max(inputs[:, 1])
+
+    rstride, cstride = 10, 10
 
     xlinspace = np.linspace(min_x, max_x, 150)
     ylinspace = np.linspace(min_y, max_y, 150)
@@ -38,13 +49,15 @@ def draw_wireframe(ax, model, inputs):
     wire_out = wire_out.cpu().detach().numpy()
 
     if wire_out.shape[-1] == 2:
-        ax.plot(wire_out[::10, ::10, 0], wire_out[::10, ::10, 1], alpha=0.3)
+        ax.plot(wire_out[::rstride, ::cstride, 0], wire_out[::rstride, ::cstride, 1],
+                color='blue', alpha=0.3)
         wire_out = wire_out.transpose(1, 0, 2)
-        ax.plot(wire_out[::10, ::10, 0], wire_out[::10, ::10, 1], alpha=0.3)
+        ax.plot(wire_out[::rstride, ::cstride, 0], wire_out[::rstride, ::cstride, 1],
+                color='blue', alpha=0.3)
     else:
         assert wire_out.shape[-1] == 3
         ax.plot_wireframe(wire_out[:, :, 0], wire_out[:, :, 1], wire_out[:, :, 2],
-                          rstride=10, cstride=10, alpha=0.3)
+                          rstride=rstride, cstride=cstride, alpha=0.3)
 
 
 def plot_input(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder, inputs: torch.Tensor):
@@ -97,7 +110,6 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
     Visualizes a feature-based embedding of graph data from a manifold into
     another
     """
-    out_manifold = graph_embedder.out_manifold
     in_dimension = graph_embedder.in_dimension
     out_dimension = graph_embedder.out_dimension
 

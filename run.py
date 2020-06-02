@@ -121,11 +121,19 @@ def plot_transformation(args):
     # input("Press any key to exit.")
 
     fig = plt.figure(figsize=(8, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    plot_output(ax, model, inputs, outputs)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.set_zticklabels([])
+
+    if outputs.shape[-1] == 2:
+        ax = fig.add_subplot(111)
+        plot_output(ax, model, inputs, outputs)
+        # ax.set_xticklabels([])
+        # ax.set_yticklabels([])
+    else:
+        assert outputs.shape[-1] == 3
+        ax = fig.add_subplot(111, projection='3d')
+        plot_output(ax, model, inputs, outputs)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_zticklabels([])
     fig.tight_layout()
     fig.show()
 
