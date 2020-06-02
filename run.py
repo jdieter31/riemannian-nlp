@@ -4,16 +4,18 @@ Tool to train graph embeddings as detailed in "Retrofitting Manifolds to Semanti
 import argparse
 import json
 import sys
+from typing import cast
 
 from riemann.config.config import ConfigDictParser
 from riemann.config.config_loader import initialize_config, get_config
 import wandb
 
+from riemann.featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model
 from riemann.data.data_loader import get_training_data, get_eval_data
-from riemann.visualize import plot
+from riemann.visualize import plot, plot_input, plot_output
 from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
 from riemann.config.config_loader import get_config
 
@@ -27,8 +29,12 @@ def train(args):
     # Initialize wandb dashboard
     config = get_config()
     wandb.init(project="retrofitting-manifolds",
+               name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}"
+                    f"->{config.model.target_manifold}" +
+                    (f"C{config.loss.conformality:0.2f}" if config.loss.use_conformality_regularizer
+                     else "N"),
                config=get_config().as_json(),
-               group="NounsLearningSweep")
+               group="ToyVisualizations")
 
     # This command just preloads the training data.
     get_training_data()
@@ -43,6 +49,7 @@ def train(args):
     # Save the model
     if args.model_file:
         model.to_file(args.model_file)
+
 
 def eval_model(args):
     # Initialize Config
@@ -71,17 +78,58 @@ def eval_model(args):
         run_mean_rank_evaluation(None, "reconstr", reconstruction=True)
 
 
-
-
 def plot_transformation(args):
     """
     Plots the manifold transformation learned by the given model.
     better represents the distances on a given graph.
     """
-    model = GraphEmbedder.from_file(args.model_file)
-    # Run plot with the data
-    fig = plot(model)
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 24
+
+    plt.rc('text', usetex=True)              # controls default text sizes
+    plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
+    plt.rc('font', family="serif")         # controls default text sizes
+    plt.rc('axes', titlesize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+
+    model: GraphObjectIDFeaturizerEmbedder = cast(GraphObjectIDFeaturizerEmbedder,
+                                                      GraphEmbedder.from_file(args.model_file))
+
+    inputs_tensor = model.get_featurizer_graph_embedder().retrieve_nodes(
+        model.graph_dataset.n_nodes()
+    )
+    output_tensor = model.retrieve_nodes(model.graph_dataset.n_nodes())
+
+    inputs = inputs_tensor.detach().numpy()
+    outputs = output_tensor.detach().numpy()
+
+    #mpl.style.use('seaborn')
+
+    # fig = plt.figure(figsize=(8, 8))
+    # ax = fig.add_subplot(111)
+    # plot_input(ax, model, inputs)
+    # ax.set_xticklabels([])
+    # ax.set_yticklabels([])
+    # fig.tight_layout()
+    # fig.show()
+    # input("Press any key to exit.")
+
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    plot_output(ax, model, inputs, outputs)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.set_zticklabels([])
+    fig.tight_layout()
     fig.show()
+
+    input("Press any key to exit.")
 
 
 # noinspection DuplicatedCode

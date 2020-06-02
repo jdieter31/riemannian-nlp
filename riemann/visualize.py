@@ -5,51 +5,21 @@ import torch
 from matplotlib.figure import Figure
 from graph_tool import Graph
 
-
+from .data.graph_dataset import GraphDataset
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from .manifolds import SphericalManifold
 
 
-def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
-    """
-    Visualizes a feature-based embedding of graph data from a manifold into
-    another
-    """
-    in_manifold = graph_embedder.in_manifold
-    out_manifold = graph_embedder.out_manifold
-    in_dimension = graph_embedder.in_dimension
-    out_dimension = graph_embedder.out_dimension
+def draw_manifold_wireframe(ax, manifold):
+    if isinstance(manifold, SphericalManifold):
+        u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
+        x = np.cos(u) * np.sin(v)
+        y = np.sin(u) * np.sin(v)
+        z = np.cos(v)
+        ax.plot_surface(x, y, z, color="w", alpha=0.2)
 
-    assert in_dimension == 2
-    assert out_dimension == 3 or (in_dimension == 2 and isinstance(out_manifold, SphericalManifold))
 
-    mpl.style.use('seaborn')
-
-    inputs_tensor = graph_embedder.get_featurizer_graph_embedder().retrieve_nodes(
-        graph_embedder.graph_dataset.n_nodes()
-    )
-    output_tensor = graph_embedder.retrieve_nodes(graph_embedder.graph_dataset.n_nodes())
-
-    inputs = inputs_tensor.detach().numpy()
-    output = output_tensor.detach().numpy()
-
-    fig = plt.figure(figsize=(14, 5))
-    ax = fig.add_subplot(121)
-
-    np.random.seed(1234324)
-    colors = np.random.rand(len(inputs), 3)
-    ax.scatter(inputs.T[0], inputs.T[1], c=colors, alpha=1)
-
-    for edge in graph_embedder.graph_dataset.edges:
-        ax.plot(inputs[edge][:, 0], inputs[edge][:, 1], 'm--', alpha=0.3)
-
-    ax = fig.add_subplot(122, projection='3d')
-    ax.scatter(output.T[0], output.T[1], output.T[2], c=colors, alpha=1)
-
-    for edge in graph_embedder.graph_dataset.edges:
-        ax.plot(output[edge][:, 0], output[edge][:, 1],
-                output[edge][:, 2], 'm--', alpha=0.3)
-
+def draw_wireframe(ax, model, inputs):
     min_x = np.min(inputs[:, 0])
     min_y = np.min(inputs[:, 1])
     max_x = np.max(inputs[:, 0])
@@ -61,22 +31,97 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
     wire_in_x, wire_in_y = np.meshgrid(xlinspace, ylinspace)
     wire_in = np.stack((wire_in_x, wire_in_y), axis=-1)
     wire_in = torch.tensor(wire_in, dtype=torch.float,
-                           device=next(graph_embedder.model.parameters()).device)
+                           device=next(model.parameters()).device)
 
     with torch.no_grad():
-        wire_out = graph_embedder.model(wire_in)
+        wire_out = model(wire_in)
     wire_out = wire_out.cpu().detach().numpy()
-    ax.plot_wireframe(wire_out[:, :, 0], wire_out[:, :, 1], wire_out[:, :, 2],
-                      rstride=10, cstride=10, alpha=0.1)
 
-    if isinstance(out_manifold, SphericalManifold):
-        u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
-        x = np.cos(u) * np.sin(v)
-        y = np.sin(u) * np.sin(v)
-        z = np.cos(v)
-        ax.plot_surface(x, y, z, color="w", alpha=0.2)
+    if wire_out.shape[-1] == 2:
+        ax.plot(wire_out[::10, ::10, 0], wire_out[::10, ::10, 1], alpha=0.3)
+        wire_out = wire_out.transpose(1, 0, 2)
+        ax.plot(wire_out[::10, ::10, 0], wire_out[::10, ::10, 1], alpha=0.3)
+    else:
+        assert wire_out.shape[-1] == 3
+        ax.plot_wireframe(wire_out[:, :, 0], wire_out[:, :, 1], wire_out[:, :, 2],
+                          rstride=10, cstride=10, alpha=0.3)
 
-    axisEqual3D(ax)
+
+def plot_input(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder, inputs: torch.Tensor):
+    # Select the i-th color in the current scheme
+    colors = [f'C{i}' for i in range(len(inputs))]
+    ax.scatter(inputs.T[0], inputs.T[1], c=colors, alpha=1)
+    for id_, (x, y) in zip(graph_embedder.graph_dataset.object_ids, inputs):
+        ax.text(x, y, id_,
+                horizontalalignment='center', verticalalignment='bottom')
+
+    for edge in graph_embedder.graph_dataset.edges:
+        ax.plot(inputs[edge][:, 0], inputs[edge][:, 1], 'm--', linewidth=3, alpha=0.6)
+    ax.axis('equal')
+
+
+def plot_output(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder,
+                inputs: np.ndarray, outputs: np.ndarray):
+    out_manifold = graph_embedder.out_manifold
+
+    draw_manifold_wireframe(ax, out_manifold)
+    draw_wireframe(ax, graph_embedder.model, inputs)
+
+    colors = [f'C{i}' for i in range(len(inputs))]
+
+    if outputs.shape[-1] == 2:
+        ax.scatter(outputs.T[0], outputs.T[1], c=colors, alpha=1)
+        for id_, (x, y) in zip(graph_embedder.graph_dataset.object_ids, outputs):
+            ax.text(x, y, id_,
+                    horizontalalignment='center', verticalalignment='bottom')
+
+        for edge in graph_embedder.graph_dataset.edges:
+            ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
+                    'm--', linewidth=3, alpha=0.6)
+        ax.axis('equal')
+    else:
+        assert outputs.shape[-1] == 3
+        ax.scatter(outputs.T[0], outputs.T[1], outputs.T[2], c=colors, alpha=1)
+        for id_, (x, y, z) in zip(graph_embedder.graph_dataset.object_ids, outputs):
+            ax.text(x, y, z, id_,
+                    horizontalalignment='center', verticalalignment='bottom')
+
+        for edge in graph_embedder.graph_dataset.edges:
+            ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
+                    outputs[edge][:, 2], 'm--', linewidth=3, alpha=0.6)
+        axisEqual3D(ax)
+
+
+def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
+    """
+    Visualizes a feature-based embedding of graph data from a manifold into
+    another
+    """
+    out_manifold = graph_embedder.out_manifold
+    in_dimension = graph_embedder.in_dimension
+    out_dimension = graph_embedder.out_dimension
+
+    assert in_dimension == 2
+    assert out_dimension == 2 or out_dimension == 3
+
+    inputs_tensor = graph_embedder.get_featurizer_graph_embedder().retrieve_nodes(
+        graph_embedder.graph_dataset.n_nodes()
+    )
+    output_tensor = graph_embedder.retrieve_nodes(graph_embedder.graph_dataset.n_nodes())
+
+    inputs = inputs_tensor.detach().numpy()
+    outputs = output_tensor.detach().numpy()
+
+    fig = plt.figure(figsize=(14, 5))
+    ax = fig.add_subplot(121)
+    plot_input(ax, graph_embedder, inputs)
+
+    if outputs.shape[-1] == 2:
+        ax = fig.add_subplot(122)
+    else:
+        assert outputs.shape[-1] == 3
+        ax = fig.add_subplot(122, projection='3d')
+    plot_output(ax, graph_embedder, inputs, outputs)
 
     return fig
 
