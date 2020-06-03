@@ -12,12 +12,15 @@ from ..config.config_loader import get_config
 from ..data.graph_data_batch import GraphDataBatch
 from ..data.graph_dataset import GraphDataset
 from ..device_manager import get_device
-from ..losses.isometry_loss import isometry_loss
+from ..losses.isometry_loss import isometry_loss, proximity_loss
 from ..manifold_initialization import initialize_manifold_tensor
 from ..manifolds import RiemannianManifold
 from ..optimizer_gen import register_parameter_group
 
 logger = logging.getLogger(__name__)
+
+
+_last_batch_samples = None
 
 
 class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
@@ -94,37 +97,50 @@ class GraphObjectIDFeaturizerEmbedder(GraphObjectIDEmbedder):
 
         return FeaturizedGraphEmbedder()
 
+    def get_loss_samples(self, data_batch: GraphDataBatch):
+        global _last_batch_samples
+        loss_config = get_config().loss
+        if loss_config.sample_from_batch:
+            vertices = data_batch.get_tensors()["vertices"]
+            perm = torch.randperm(vertices.size(0))
+            idx = perm[:min(vertices.size(0),
+                            loss_config.isometry_samples)]
+            sample_indices = vertices[idx]
+            samples = self.get_featurizer_graph_embedder().embed_nodes(sample_indices)
+        else:
+            sample_num = loss_config.isometry_samples
+            initialization = loss_config.random_isometry_initialization.get_initialization_dict()
+
+            samples = torch.empty(sample_num,
+                                  self.in_dimension,
+                                  dtype=torch.float,
+                                  device=get_device())
+            initialize_manifold_tensor(samples, self.in_manifold,
+                                       initialization)
+        # update last batch
+        _last_batch_samples = samples
+        return samples
+
     def get_losses(self):
         loss_config = get_config().loss
-        if loss_config.use_conformality_regularizer:
-            def batch_isometry_loss(data_batch: GraphDataBatch):
+        if loss_config.use_proximity_regularizer:
+            assert self.in_dimension == self.out_dimension, ("Can only use proximity regularization"
+                                                             " when in and out dimensions match")
 
-                sample_num = loss_config.isometry_samples
-                if loss_config.sample_from_batch:
-                    vertices = data_batch.get_tensors()["vertices"]
-                    perm = torch.randperm(vertices.size(0))
-                    idx = perm[:min(vertices.size(0),
-                                    loss_config.isometry_samples)]
-                    sample_indices = vertices[idx]
-                    samples = \
-                        self.get_featurizer_graph_embedder().embed_nodes(sample_indices)
-                    
-                else:
-                    initialization = \
-                        loss_config.random_isometry_initialization.get_initialization_dict()
+            def loss_fn(data_batch: GraphDataBatch):
+                samples = self.get_loss_samples(data_batch)
+                return proximity_loss(self.model, samples)
 
-                    samples = torch.empty(sample_num,
-                                          self.in_dimension,
-                                          dtype=torch.float,
-                                          device=get_device())
-                    initialize_manifold_tensor(samples, self.in_manifold,
-                                            initialization)
+            return [loss_fn]
+        elif loss_config.use_conformality_regularizer:
+            def loss_fn(data_batch: GraphDataBatch):
+                samples = self.get_loss_samples(data_batch)
                 return isometry_loss(self.model, samples,
                                      self.in_manifold, self.out_manifold,
                                      self.out_dimension, loss_config.conformality
                                      )
 
-            return [batch_isometry_loss]
+            return [loss_fn]
         else:
             return []
 

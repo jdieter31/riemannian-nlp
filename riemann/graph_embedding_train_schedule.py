@@ -56,7 +56,6 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
         if model_config.save_dir is not None:
             self.model.to_file(f"{model_config.save_dir}end_training.zip")
 
-
     def _get_loss_processor(self):
         if self._loss_processor is None:
             losses = self._get_losses()

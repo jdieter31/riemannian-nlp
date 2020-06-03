@@ -28,11 +28,16 @@ def train(args):
     # Log this configuration to wandb
     # Initialize wandb dashboard
     config = get_config()
+    if config.loss.use_proximity_regularizer:
+        loss_description = "P"
+    elif config.loss.use_conformality_regularizer:
+        loss_description = f"C{config.loss.conformality:0.2f}"
+    else:
+        loss_description = "N"
+
     wandb.init(project="retrofitting-manifolds",
                name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}"
-                    f"->{config.model.target_manifold}" +
-                    (f"C{config.loss.conformality:0.2f}" if config.loss.use_conformality_regularizer
-                     else "N"),
+                    f"->{config.model.target_manifold}{loss_description}",
                config=get_config().as_json(),
                group="ToyVisualizations")
 

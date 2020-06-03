@@ -9,6 +9,7 @@ from torch.optim.optimizer import Optimizer
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
 from ..optimizer_gen import get_scheduler
+from .. import optimizer_gen
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +39,10 @@ class GradNormLossProcessor(BatchTask):
         self.losses = losses
         self.optimizer = optimizer
         self.grad_norm_params = grad_norm_params
-        self.gradient_weights = torch.tensor(torch.FloatTensor([0 for _ in
-                                                                self.losses]),
+        self.gradient_weights = torch.tensor([0. for _ in self.losses],
+                                             dtype=torch.float32,
                                              requires_grad=False,
-                                             device=self.grad_norm_params[0].device
-                                             )
-
-        """
-        learning_config = get_config().learning
-        self.grad_norm_optimizer = Adam([self.gradient_weights],
-                                        lr=learning_config.grad_norm_lr)
-        """
+                                             device=self.grad_norm_params[0].device)
         self.initial_losses = None
         self.iterations = 0
 
@@ -66,8 +60,8 @@ class GradNormLossProcessor(BatchTask):
 
         # Save initial loss values if none are saved or it's time to refresh as
         # specified by the config
-        save_initial = self.initial_losses is None or self.iterations % \
-                       learning_config.grad_norm_initial_refresh_rate == 0
+        save_initial = (self.initial_losses is None or
+                        self.iterations % learning_config.grad_norm_initial_refresh_rate == 0)
         if save_initial:
             self.initial_losses = []
 
@@ -79,20 +73,19 @@ class GradNormLossProcessor(BatchTask):
             # Compute all losses and gradient norms
             loss = loss_func(batch)
             if torch.isnan(loss).any():
-                logger.warning("Loss{loss_num} is NaN")
+                logger.warning(f"Loss{loss_num} is NaN")
                 # Filter nans
                 loss[torch.isnan(loss)] = 0
             wandb.log({f"train/loss{loss_num}": float(loss.cpu().detach().numpy())},
                       step=self.iterations)
 
-            """
-            weight = len(self.losses) * torch.nn.functional.softmax(self.gradient_weights,
-                                                -1)[loss_num]
-            """
             if save_initial:
                 self.initial_losses.append(loss.detach())
+
+            g_norm = self.compute_grad_norms(loss).detach()
+
             losses.append(loss)
-            g_norms.append(self.compute_grad_norms(loss).detach())
+            g_norms.append(g_norm)
             wandb.log({f"train/g_norm{loss_num}": float(g_norms[-1].cpu().detach().numpy())},
                       step=self.iterations)
             # total_loss += weight * loss / len(self.losses)
@@ -102,12 +95,6 @@ class GradNormLossProcessor(BatchTask):
             self.initial_losses = torch.stack(self.initial_losses)
 
         self.optimizer.zero_grad()
-
-        """
-        total_loss.backward(retain_graph=True)
-        # Main optimization step
-        self.optimizer.step()
-        """
 
         g_norms = torch.stack(g_norms)
         losses = torch.stack(losses)
@@ -123,14 +110,13 @@ class GradNormLossProcessor(BatchTask):
         ideal_grad_norms = (g_norm_avg * (inv_rates ** alpha)).detach()
         self.gradient_weights = ideal_grad_norms / (g_norms + EPSILON)
 
-        self.gradient_weights = self.gradient_weights.size(0) * \
-            self.gradient_weights * \
-            torch.tensor(learning_config.loss_priority,
-                         requires_grad=False,
-                         device=self.gradient_weights.device)
+        self.gradient_weights = (self.gradient_weights.size(0) * self.gradient_weights *
+                                 torch.tensor(learning_config.loss_priority,
+                                              requires_grad=False,
+                                              device=self.gradient_weights.device))
         for i in range(len(self.losses)):
             wandb.log({f"train/g_weight{i}":
-                           float(self.gradient_weights[i].cpu().detach().numpy())},
+                       float(self.gradient_weights[i].cpu().detach().numpy())},
                       step=self.iterations)
 
         total_loss = (self.gradient_weights * losses).sum()
@@ -146,21 +132,8 @@ class GradNormLossProcessor(BatchTask):
 
         get_scheduler().step(total_loss.detach())
 
-        """
-        # L1 Loss for optimizing loss weightings
-        grad_norm_loss = (g_norms - ideal_grad_norms).abs().sum()
-        self.grad_norm_optimizer.zero_grad()
-        grad_norm_loss.backward()
-        self.grad_norm_optimizer.step()
-        """
-
-        """
-        # Renormalize loss weights
-        with torch.no_grad():
-            for grad_weight in self.gradient_weights:
-                grad_weight /= sum(self.gradient_weights) / \
-                    len(self.gradient_weights)
-        """
+        if any(torch.isnan(param).any() for param in self.grad_norm_params):
+            raise RuntimeError("Parameters have been set to NaN")
 
         wandb.log({f"train/loss_total": float(total_loss.cpu().detach().numpy())},
                   step=self.iterations)
@@ -171,12 +144,9 @@ class GradNormLossProcessor(BatchTask):
         """
         Computes the gradient norms (of self.grad_norm_params) for a loss value
         """
-        total_norm = 0.
-        for param in self.grad_norm_params:
-            grad = torch.autograd.grad(loss, param, retain_graph=True,
-                                       create_graph=True)
-            norm = torch.norm(grad[0], 2)
-            total_norm += norm ** 2
-
-        total_norm = torch.sqrt(total_norm)
+        grads = torch.autograd.grad(loss, self.grad_norm_params, retain_graph=True,
+                                    create_graph=True)
+        if any(torch.isnan(grad).any() for grad in grads):
+            logger.warning("Encountered NaN gradient")
+        total_norm = torch.sqrt(sum([torch.norm(grad, 2)**2 for grad in grads]))
         return total_norm
