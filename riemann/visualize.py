@@ -11,6 +11,21 @@ from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeatur
 from .manifolds import SphericalManifold
 
 
+def project_sphere(u, v):
+    x = np.cos(u) * np.sin(v)
+    y = np.sin(u) * np.sin(v)
+    z = np.cos(v)
+    return x, y, z
+
+
+def project_to_ambient(manifold, data):
+    if isinstance(manifold, SphericalManifold):
+        assert data.shape[-1] == 2
+        return np.vstack(project_sphere(data.T[0], data.T[1])).T
+    else:
+        return data
+
+
 def draw_manifold_wireframe(ax, manifold):
     if isinstance(manifold, PoincareBall):
         # (Must be H2)
@@ -22,9 +37,7 @@ def draw_manifold_wireframe(ax, manifold):
     if isinstance(manifold, SphericalManifold):
         # (Must be S2)
         u, v = np.mgrid[0:2 * np.pi:20j, 0:np.pi:10j]
-        x = np.cos(u) * np.sin(v)
-        y = np.sin(u) * np.sin(v)
-        z = np.cos(v)
+        x, y, z = project_sphere(u, v)
         ax.plot_surface(x, y, z, color="w", alpha=0.2)
 
 
@@ -73,33 +86,27 @@ def plot_input(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder, inputs: torc
     ax.axis('equal')
 
 
-def plot_output(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder,
+def plot_output(ax, graph_dataset: GraphDataset,
                 inputs: np.ndarray, outputs: np.ndarray):
-    out_manifold = graph_embedder.out_manifold
-
-    draw_manifold_wireframe(ax, out_manifold)
-    draw_wireframe(ax, graph_embedder.model, inputs)
-
     colors = [f'C{i}' for i in range(len(inputs))]
 
     if outputs.shape[-1] == 2:
         ax.scatter(outputs.T[0], outputs.T[1], c=colors, alpha=1)
-        for id_, (x, y) in zip(graph_embedder.graph_dataset.object_ids, outputs):
+        for id_, (x, y) in zip(graph_dataset.object_ids, outputs):
             ax.text(x, y, id_,
                     horizontalalignment='center', verticalalignment='bottom')
-
-        for edge in graph_embedder.graph_dataset.edges:
+        for edge in graph_dataset.edges:
             ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
                     'm--', linewidth=3, alpha=0.6)
         ax.axis('equal')
     else:
         assert outputs.shape[-1] == 3
         ax.scatter(outputs.T[0], outputs.T[1], outputs.T[2], c=colors, alpha=1)
-        for id_, (x, y, z) in zip(graph_embedder.graph_dataset.object_ids, outputs):
+        for id_, (x, y, z) in zip(graph_dataset.object_ids, outputs):
             ax.text(x, y, z, id_,
                     horizontalalignment='center', verticalalignment='bottom')
 
-        for edge in graph_embedder.graph_dataset.edges:
+        for edge in graph_dataset.edges:
             ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
                     outputs[edge][:, 2], 'm--', linewidth=3, alpha=0.6)
         axisEqual3D(ax)
@@ -124,16 +131,20 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
     inputs = inputs_tensor.detach().numpy()
     outputs = output_tensor.detach().numpy()
 
+    ###
     fig = plt.figure(figsize=(14, 5))
     ax = fig.add_subplot(121)
     plot_input(ax, graph_embedder, inputs)
 
+    outputs = project_to_ambient(graph_embedder.out_manifold, outputs)
     if outputs.shape[-1] == 2:
         ax = fig.add_subplot(122)
     else:
         assert outputs.shape[-1] == 3
         ax = fig.add_subplot(122, projection='3d')
-    plot_output(ax, graph_embedder, inputs, outputs)
+    draw_manifold_wireframe(ax, graph_embedder.out_manifold)
+    draw_wireframe(ax, graph_embedder.model, inputs)
+    plot_output(ax, graph_embedder.graph_dataset, inputs, outputs)
 
     return fig
 

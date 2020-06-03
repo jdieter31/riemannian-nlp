@@ -96,6 +96,7 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     pullback_metric += EPSILON * torch.eye(n)
     rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()
+
     return loss
 
 
@@ -107,10 +108,8 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    if EPSILON > 0:
-        log_eig = torch.log(relu(eigenvalues) + EPSILON)
-    else:
-        log_eig = torch.log(relu(eigenvalues))
+
+    log_eig = torch.log(relu(eigenvalues) + EPSILON)
     # Filter potential nans
     if torch.isnan(log_eig).any():
         logger.warning("Found a nan in divergence score")

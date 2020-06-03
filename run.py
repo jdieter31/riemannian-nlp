@@ -6,6 +6,7 @@ import json
 import sys
 from typing import cast
 
+from riemann import SphericalManifold
 from riemann.config.config import ConfigDictParser
 from riemann.config.config_loader import initialize_config, get_config
 import wandb
@@ -15,7 +16,8 @@ from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model
 from riemann.data.data_loader import get_training_data, get_eval_data
-from riemann.visualize import plot, plot_input, plot_output
+from riemann.visualize import plot, plot_input, plot_output, project_to_ambient, \
+    draw_manifold_wireframe, draw_wireframe
 from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
 from riemann.config.config_loader import get_config
 
@@ -109,40 +111,37 @@ def plot_transformation(args):
     inputs_tensor = model.get_featurizer_graph_embedder().retrieve_nodes(
         model.graph_dataset.n_nodes()
     )
-    output_tensor = model.retrieve_nodes(model.graph_dataset.n_nodes())
-
     inputs = inputs_tensor.detach().numpy()
-    outputs = output_tensor.detach().numpy()
 
-    #mpl.style.use('seaborn')
-
-    # fig = plt.figure(figsize=(8, 8))
-    # ax = fig.add_subplot(111)
-    # plot_input(ax, model, inputs)
-    # ax.set_xticklabels([])
-    # ax.set_yticklabels([])
-    # fig.tight_layout()
-    # fig.show()
-    # input("Press any key to exit.")
-
-    fig = plt.figure(figsize=(8, 8))
-
-    if outputs.shape[-1] == 2:
+    if args.input:
+        fig = plt.figure(figsize=(8, 8))
         ax = fig.add_subplot(111)
-        plot_output(ax, model, inputs, outputs)
-        # ax.set_xticklabels([])
-        # ax.set_yticklabels([])
-    else:
-        assert outputs.shape[-1] == 3
-        ax = fig.add_subplot(111, projection='3d')
-        plot_output(ax, model, inputs, outputs)
+        plot_input(ax, model, inputs)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
-        ax.set_zticklabels([])
-    fig.tight_layout()
-    fig.show()
+        fig.tight_layout()
+        fig.show()
+        input("Press any key to exit.")
+    if args.output:
+        output_tensor = model.retrieve_nodes(model.graph_dataset.n_nodes())
+        outputs = output_tensor.detach().numpy()
 
-    input("Press any key to exit.")
+        outputs = project_to_ambient(model.out_manifold, outputs)
+        fig = plt.figure(figsize=(8, 8))
+        if outputs.shape[-1] == 2:
+            ax = fig.add_subplot(111)
+        else:
+            assert outputs.shape[-1] == 3
+            ax = fig.add_subplot(111, projection='3d')
+
+        draw_manifold_wireframe(ax, model.out_manifold)
+        draw_wireframe(ax, model.model, inputs)
+        plot_output(ax, model.graph_dataset, inputs, outputs)
+
+        fig.tight_layout()
+        fig.show()
+
+        input("Press any key to exit.")
 
 
 # noinspection DuplicatedCode
@@ -160,6 +159,8 @@ if __name__ == "__main__":
     command_parser.set_defaults(func=train)
 
     command_parser = subparsers.add_parser('plot', help=plot_transformation.__doc__)
+    command_parser.add_argument('-i', '--input', action="store_true", help="Draw input")
+    command_parser.add_argument('-o', '--output', action="store_true", help="Draw output")
     command_parser.add_argument('model_file', type=str,
                                 help="File to load model from")
     command_parser.set_defaults(func=plot_transformation)
