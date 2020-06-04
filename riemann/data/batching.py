@@ -33,7 +33,7 @@ class BatchTask(abc.ABC):
     """
 
     @abc.abstractmethod
-    def process_batch(self, data_batch: DataBatch):
+    def process_batch(self, data_batch: DataBatch, iteration_num: int):
         raise NotImplementedError
 
 
@@ -45,5 +45,5 @@ class FunctionBatchTask(BatchTask):
     def __init__(self, function):
         self.function = function
 
-    def process_batch(data_batch: DataBatch):
+    def process_batch(self, data_batch: DataBatch, iteration_num: int):
         self.function(data_batch)

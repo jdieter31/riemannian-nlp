@@ -5,6 +5,7 @@ from typing import Iterator, Tuple, List
 from tqdm import tqdm
 
 from .data.batching import DataBatch, BatchTask
+from .evaluations import mean_rank
 
 
 class TrainSchedule(abc.ABC):
@@ -69,7 +70,7 @@ class TrainSchedule(abc.ABC):
                         task()
 
             for task in tasks:
-                task.process_batch(batch)
+                task.process_batch(batch, self.iteration_num)
 
             if count_iterations:
                 self.iteration_num += 1

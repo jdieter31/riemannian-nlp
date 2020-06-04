@@ -9,7 +9,6 @@ from ..data.graph_data_batch import GraphDataBatch
 from ..model import get_model
 from ..train import DummyTrainSchedule
 
-step_num = None
 bests = {}
 
 
@@ -36,7 +35,7 @@ def compute_mrr(ranks, adjust_ranks: bool = True):
 
 class MeanRankEvaluator(BatchTask):
 
-    def __init__(self):
+    def __init__(self, step_num):
         """
         Initializes mean rank averaging
         """
@@ -46,8 +45,9 @@ class MeanRankEvaluator(BatchTask):
         self.mrr_sum = 0
         self.map_sum = 0
         self.hitsat10 = 0
+        self.step_num = step_num
 
-    def process_batch(self, batch: GraphDataBatch):
+    def process_batch(self, batch: GraphDataBatch, iteration_num: int):
         """
         Processes a batch as documented in superclass
         """
@@ -93,10 +93,10 @@ class MeanRankEvaluator(BatchTask):
         mean_map = self.map_sum / self.ranks_computed
 
         if log_results:
-            wandb.log({f"{log_name}/hitsat10": hitsat10}, step=step_num)
-            wandb.log({f"{log_name}/mean_rank": mean_rank}, step=step_num)
-            wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=step_num)
-            wandb.log({f"{log_name}/map": mean_map}, step=step_num)
+            wandb.log({f"{log_name}/hitsat10": hitsat10}, step=self.step_num)
+            wandb.log({f"{log_name}/mean_rank": mean_rank}, step=self.step_num)
+            wandb.log({f"{log_name}/mean_rec_rank": mean_rec_rank}, step=self.step_num)
+            wandb.log({f"{log_name}/map": mean_map}, step=self.step_num)
 
         return mean_rank, mean_rec_rank, hitsat10, mean_map
 
@@ -104,7 +104,7 @@ class MeanRankEvaluator(BatchTask):
 def run_evaluation(train_schedule=None,
                    log_name="",
                    reconstruction=False,
-                   step=None):
+                   step_num=None):
     """
     Runs this evaluation using a train schedule
 
@@ -117,9 +117,7 @@ def run_evaluation(train_schedule=None,
             training data is to be measured.
         step (int): Step number for logging to wandb
     """
-    global step_num
     global bests
-    step_num = step
 
     if train_schedule is None:
         print_evaluation = True
@@ -140,7 +138,7 @@ def run_evaluation(train_schedule=None,
     data_iterator = \
         eval_data.get_neighbor_iterator(sampling_config.eval_sampling_config,
                                         data_fraction=eval_config.data_fraction)
-    mean_rank_evaluator = MeanRankEvaluator()
+    mean_rank_evaluator = MeanRankEvaluator(step_num=step_num)
     epoch = (data_iterator, ([mean_rank_evaluator] for _ in
                              range(len(data_iterator))))
     train_schedule.run_epoch(epoch,

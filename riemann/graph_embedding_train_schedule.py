@@ -89,7 +89,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
                     eval_data = get_eval_data()
                     eval_data.add_manifold_nns(self.model)
                 run_mean_rank_evaluation(self, "lnk_pred",
-                                         step=self.iteration_num)
+                                         step_num=self.iteration_num)
             self.add_cyclic_task(task, eval_config.link_pred_frequency)
 
         if eval_config.eval_reconstruction:
@@ -99,7 +99,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
                     train_data = get_training_data()
                     train_data.add_manifold_nns(self.model)
                 run_mean_rank_evaluation(self, "reconstr",
-                                            step=self.iteration_num,
+                                            step_num=self.iteration_num,
                                             reconstruction=True)
             self.add_cyclic_task(task, eval_config.reconstruction_frequency)
 
@@ -107,7 +107,7 @@ class GraphEmbeddingTrainSchedule(TrainSchedule):
                                                          GraphObjectIDFeaturizerEmbedder):
             def visualize_task():
                 fig = plot(cast(GraphObjectIDFeaturizerEmbedder, self.model))
-                wandb.log({"visualization": wandb.Image(fig)})
+                wandb.log({"visualization": wandb.Image(fig)}, step=self.iteration_num)
                 plt.close(fig)
 
             self.add_cyclic_task(visualize_task,

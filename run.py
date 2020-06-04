@@ -41,7 +41,7 @@ def train(args):
                name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}"
                     f"->{config.model.target_manifold}{loss_description}",
                config=get_config().as_json(),
-               group="NounsSweep10D->12D")
+               group="CyclicTree")
 
     # This command just preloads the training data.
     get_training_data()
@@ -116,12 +116,15 @@ def plot_transformation(args):
     if args.input:
         fig = plt.figure(figsize=(8, 8))
         ax = fig.add_subplot(111)
+        draw_wireframe(ax, inputs)
         plot_input(ax, model, inputs)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
         fig.tight_layout()
-        fig.show()
-        input("Press any key to exit.")
+
+        if args.input_path:
+            fig.savefig(args.input_path)
+        else:
+            fig.show()
+            input("Press any key to exit.")
     if args.output:
         output_tensor = model.retrieve_nodes(model.graph_dataset.n_nodes())
         outputs = output_tensor.detach().numpy()
@@ -135,13 +138,15 @@ def plot_transformation(args):
             ax = fig.add_subplot(111, projection='3d')
 
         draw_manifold_wireframe(ax, model.out_manifold)
-        draw_wireframe(ax, model.model, inputs)
-        plot_output(ax, model.graph_dataset, inputs, outputs)
+        draw_wireframe(ax, inputs, model.model)
+        plot_output(ax, model.graph_dataset, model.out_manifold, inputs, outputs)
 
         fig.tight_layout()
-        fig.show()
-
-        input("Press any key to exit.")
+        if args.output_path:
+            fig.savefig(args.output_path)
+        else:
+            fig.show()
+            input("Press any key to exit.")
 
 
 # noinspection DuplicatedCode
@@ -160,7 +165,11 @@ if __name__ == "__main__":
 
     command_parser = subparsers.add_parser('plot', help=plot_transformation.__doc__)
     command_parser.add_argument('-i', '--input', action="store_true", help="Draw input")
+    command_parser.add_argument('-if', '--input-path', type=str, help="Where to save input")
     command_parser.add_argument('-o', '--output', action="store_true", help="Draw output")
+    command_parser.add_argument('-of', '--output-path', type=str, help="Where to save input")
+    command_parser.add_argument('-u', '--config_updates', type=str, default="",
+                                help="Extra configuration to inject into config dict")
     command_parser.add_argument('model_file', type=str,
                                 help="File to load model from")
     command_parser.set_defaults(func=plot_transformation)

@@ -24,9 +24,8 @@ class SingleLossProcessor(BatchTask):
         """
         self.loss = loss
         self.optimizer = optimizer
-        self.iterations = 0
 
-    def process_batch(self, batch: DataBatch):
+    def process_batch(self, batch: DataBatch, iteration_num: int):
         """
         Runs both the grad norm weighting optimizer as well as the main loss
         optimizer on a batch of data
@@ -41,6 +40,4 @@ class SingleLossProcessor(BatchTask):
         self.optimizer.step()
 
         wandb.log({"train/loss": float(loss.cpu().detach().numpy())},
-                  step=self.iterations)
-
-        self.iterations += 1
+                  step=iteration_num)

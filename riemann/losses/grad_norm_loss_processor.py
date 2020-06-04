@@ -9,7 +9,6 @@ from torch.optim.optimizer import Optimizer
 from ..config.config_loader import get_config
 from ..data.batching import BatchTask, DataBatch
 from ..optimizer_gen import get_scheduler
-from .. import optimizer_gen
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +43,8 @@ class GradNormLossProcessor(BatchTask):
                                              requires_grad=False,
                                              device=self.grad_norm_params[0].device)
         self.initial_losses = None
-        self.iterations = 0
 
-    def process_batch(self, batch: DataBatch):
+    def process_batch(self, batch: DataBatch, iteration_num: int):
         """
         Runs both the grad norm weighting optimizer as well as the main loss
         optimizer on a batch of data
@@ -61,7 +59,7 @@ class GradNormLossProcessor(BatchTask):
         # Save initial loss values if none are saved or it's time to refresh as
         # specified by the config
         save_initial = (self.initial_losses is None or
-                        self.iterations % learning_config.grad_norm_initial_refresh_rate == 0)
+                        iteration_num % learning_config.grad_norm_initial_refresh_rate == 0)
         if save_initial:
             self.initial_losses = []
 
@@ -77,7 +75,7 @@ class GradNormLossProcessor(BatchTask):
                 # Filter nans
                 loss[torch.isnan(loss)] = 0
             wandb.log({f"train/loss{loss_num}": float(loss.cpu().detach().numpy())},
-                      step=self.iterations)
+                      step=iteration_num)
 
             if save_initial:
                 self.initial_losses.append(loss.detach())
@@ -87,7 +85,7 @@ class GradNormLossProcessor(BatchTask):
             losses.append(loss)
             g_norms.append(g_norm)
             wandb.log({f"train/g_norm{loss_num}": float(g_norms[-1].cpu().detach().numpy())},
-                      step=self.iterations)
+                      step=iteration_num)
             # total_loss += weight * loss / len(self.losses)
             loss_num += 1
 
@@ -117,7 +115,7 @@ class GradNormLossProcessor(BatchTask):
         for i in range(len(self.losses)):
             wandb.log({f"train/g_weight{i}":
                        float(self.gradient_weights[i].cpu().detach().numpy())},
-                      step=self.iterations)
+                      step=iteration_num)
 
         total_loss = (self.gradient_weights * losses).sum()
 
@@ -127,7 +125,7 @@ class GradNormLossProcessor(BatchTask):
         # Hacky way of logging learning rate
         for param_group in self.optimizer.param_groups:
             wandb.log({"train/lr": param_group['lr']},
-                        step=self.iterations)
+                      step=iteration_num)
             break
 
         get_scheduler().step(total_loss.detach())
@@ -136,9 +134,7 @@ class GradNormLossProcessor(BatchTask):
             raise RuntimeError("Parameters have been set to NaN")
 
         wandb.log({f"train/loss_total": float(total_loss.cpu().detach().numpy())},
-                  step=self.iterations)
-
-        self.iterations += 1
+                  step=iteration_num)
 
     def compute_grad_norms(self, loss: torch.Tensor):
         """

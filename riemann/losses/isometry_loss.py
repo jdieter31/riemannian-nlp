@@ -91,8 +91,11 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     sig_eig_t = torch.transpose(significant_eigenvec_batch, -2, -1)
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
 
-    # We'll regularize the pullback metric a wee bit.
+    # We'll unit regularize the pullback metric a wee bit to prevent 0s.
     n = pullback_metric.shape[-1]
+    #
+    # import ipdb; ipdb.set_trace()
+
     pullback_metric += EPSILON * torch.eye(n)
     rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()

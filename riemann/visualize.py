@@ -5,7 +5,7 @@ import torch
 from matplotlib.figure import Figure
 from graph_tool import Graph
 
-from . import PoincareBall
+from . import PoincareBall, RiemannianManifold
 from .data.graph_dataset import GraphDataset
 from .featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from .manifolds import SphericalManifold
@@ -19,11 +19,11 @@ def project_sphere(u, v):
 
 
 def project_to_ambient(manifold, data):
-    if isinstance(manifold, SphericalManifold):
-        assert data.shape[-1] == 2
-        return np.vstack(project_sphere(data.T[0], data.T[1])).T
-    else:
-        return data
+    # if isinstance(manifold, SphericalManifold):
+    #     assert data.shape[-1] == 2
+    #     return np.vstack(project_sphere(data.T[0], data.T[1])).T
+    # else:
+    return data
 
 
 def draw_manifold_wireframe(ax, manifold):
@@ -41,31 +41,34 @@ def draw_manifold_wireframe(ax, manifold):
         ax.plot_surface(x, y, z, color="w", alpha=0.2)
 
 
-def draw_wireframe(ax, model, inputs):
-    min_x = np.min(inputs[:, 0])
-    min_y = np.min(inputs[:, 1])
-    max_x = np.max(inputs[:, 0])
-    max_y = np.max(inputs[:, 1])
-
-    rstride, cstride = 10, 10
+def draw_wireframe(ax, inputs, model=None):
+    min_x, min_y = np.min(inputs, 0)
+    max_x, max_y = np.max(inputs, 0)
 
     xlinspace = np.linspace(min_x, max_x, 150)
     ylinspace = np.linspace(min_y, max_y, 150)
+    rstride, cstride = 10, 10
 
     wire_in_x, wire_in_y = np.meshgrid(xlinspace, ylinspace)
-    wire_in = np.stack((wire_in_x, wire_in_y), axis=-1)
-    wire_in = torch.tensor(wire_in, dtype=torch.float,
-                           device=next(model.parameters()).device)
+    wire_in: np.ndarray = np.stack((wire_in_x, wire_in_y), axis=-1)
 
-    with torch.no_grad():
-        wire_out = model(wire_in)
-    wire_out = wire_out.cpu().detach().numpy()
+    wire_out: np.ndarray
+    if model:
+        wire_in_ = torch.tensor(wire_in, dtype=torch.float,
+                               device=next(model.parameters()).device)
+        with torch.no_grad():
+            wire_out_ = model(wire_in_)
+        wire_out = wire_out_.cpu().detach().numpy()
+    else:
+        wire_out = wire_in
 
     if wire_out.shape[-1] == 2:
-        ax.plot(wire_out[::rstride, ::cstride, 0], wire_out[::rstride, ::cstride, 1],
+        rstride = np.linspace(0, len(xlinspace)-1, len(xlinspace)//rstride, dtype=int)
+        cstride = np.linspace(0, len(ylinspace)-1, len(ylinspace)//cstride, dtype=int)
+        ax.plot(wire_out[:, rstride, 0], wire_out[:, rstride, 1],
                 color='blue', alpha=0.3)
         wire_out = wire_out.transpose(1, 0, 2)
-        ax.plot(wire_out[::rstride, ::cstride, 0], wire_out[::rstride, ::cstride, 1],
+        ax.plot(wire_out[:, cstride, 0], wire_out[:, cstride, 1],
                 color='blue', alpha=0.3)
     else:
         assert wire_out.shape[-1] == 3
@@ -86,7 +89,7 @@ def plot_input(ax, graph_embedder: GraphObjectIDFeaturizerEmbedder, inputs: torc
     ax.axis('equal')
 
 
-def plot_output(ax, graph_dataset: GraphDataset,
+def plot_output(ax, graph_dataset: GraphDataset, manifold: RiemannianManifold,
                 inputs: np.ndarray, outputs: np.ndarray):
     colors = [f'C{i}' for i in range(len(inputs))]
 
@@ -95,8 +98,15 @@ def plot_output(ax, graph_dataset: GraphDataset,
         for id_, (x, y) in zip(graph_dataset.object_ids, outputs):
             ax.text(x, y, id_,
                     horizontalalignment='center', verticalalignment='bottom')
+
         for edge in graph_dataset.edges:
-            ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
+            # Map edge onto the geodesic
+            edge = torch.from_numpy(outputs[edge])
+            v = manifold.log(edge[0], edge[1])
+            t = torch.from_numpy(np.linspace(0, 1, 100, dtype=np.float32))
+            curve = manifold.exp(edge[0], (t * v.reshape(-1, 1)).T).numpy()
+
+            ax.plot(curve[:, 0], curve[:, 1],
                     'm--', linewidth=3, alpha=0.6)
         ax.axis('equal')
     else:
@@ -106,9 +116,16 @@ def plot_output(ax, graph_dataset: GraphDataset,
             ax.text(x, y, z, id_,
                     horizontalalignment='center', verticalalignment='bottom')
 
+        # Map edges onto the geodesic
         for edge in graph_dataset.edges:
-            ax.plot(outputs[edge][:, 0], outputs[edge][:, 1],
-                    outputs[edge][:, 2], 'm--', linewidth=3, alpha=0.6)
+            # Map edge onto the geodesic
+            edge = torch.from_numpy(outputs[edge])
+            v = manifold.log(edge[0], edge[1])
+            t = torch.from_numpy(np.linspace(0, 1, 100, dtype=np.float32))
+            curve = manifold.exp(edge[0], (t * v.reshape(-1, 1)).T).numpy()
+
+            ax.plot(curve[:, 0], curve[:, 1], curve[:, 2],
+                    'm--', linewidth=3, alpha=0.6)
         axisEqual3D(ax)
 
 
@@ -143,8 +160,8 @@ def plot(graph_embedder: GraphObjectIDFeaturizerEmbedder) -> Figure:
         assert outputs.shape[-1] == 3
         ax = fig.add_subplot(122, projection='3d')
     draw_manifold_wireframe(ax, graph_embedder.out_manifold)
-    draw_wireframe(ax, graph_embedder.model, inputs)
-    plot_output(ax, graph_embedder.graph_dataset, inputs, outputs)
+    draw_wireframe(ax, inputs, graph_embedder.model)
+    plot_output(ax, graph_embedder.graph_dataset, graph_embedder.out_manifold, inputs, outputs)
 
     return fig
 
