@@ -31,16 +31,19 @@ def train(args):
     # Log this configuration to wandb
     # Initialize wandb dashboard
     config = get_config()
+    wandb.init(project="retrofitting-manifolds",
+               config=config.as_json(),
+               group="NaNTest")
+
     if config.loss.use_proximity_regularizer:
         loss_description = "P"
     elif config.loss.use_conformality_regularizer:
         loss_description = f"C{config.loss.conformality:0.2f}"
     else:
         loss_description = "N"
-
-    wandb.init(project="retrofitting-manifolds",
-               config=get_config().as_json(),
-               group="NaNTest")
+    wandb.run.name = (f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}->"
+                      f"{config.model.target_manifold}{loss_description}-{wandb.run.id}")
+    wandb.run.save()
 
     # This command just preloads the training data.
     get_training_data()
@@ -150,7 +153,7 @@ def plot_transformation(args):
 
 # noinspection DuplicatedCode
 if __name__ == "__main__":
-    logging.basicConfig()
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers()
     command_parser = subparsers.add_parser('train', help=train.__doc__)

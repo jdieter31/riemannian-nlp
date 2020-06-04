@@ -63,8 +63,14 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     """
 
     jacobian, model_out = compute_jacobian(model, input_embeddings, out_dimension)
-    tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     jacobian_shape = jacobian.size()
+    #
+    # with torch.no_grad():
+    #     logdets = torch.logdet(jacobian)
+    #     if torch.isnan(logdets).any() or (logdets < -20).any():
+    #         logger.warning("Found a singular Jacobian -- skipping the loss on this batch")
+
+    tangent_proj_out = out_manifold.tangent_proj_matrix(model_out)
     tangent_proj_out_shape = tangent_proj_out.size()
     tangent_proj_out_batch = tangent_proj_out.view(-1, tangent_proj_out_shape[-2],
                                                    tangent_proj_out_shape[-1])
@@ -96,7 +102,7 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     #
     # import ipdb; ipdb.set_trace()
 
-    pullback_metric += EPSILON * torch.eye(n, device = pullback_metric.device)
+    pullback_metric += EPSILON * torch.eye(n, device=pullback_metric.device)
     rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()
 
