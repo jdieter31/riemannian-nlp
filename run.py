@@ -40,7 +40,7 @@ def train(args):
 
     wandb.init(project="retrofitting-manifolds",
                config=get_config().as_json(),
-               group="Nouns10D")
+               group="NaNTest")
 
     # This command just preloads the training data.
     get_training_data()
