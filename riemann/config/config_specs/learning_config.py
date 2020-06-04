@@ -11,10 +11,8 @@ class LearningConfig(ConfigDict):
     """
     grad_norm_lr: float = 0.05
     grad_norm_initial_refresh_rate: int = 200000
-    grad_norm_alpha: float = 0.6
-
+    grad_norm_alpha: float = 0.5
     loss_priority: List[float] = [0.5, 0.5]
-
-    lr: float = 0.00005
-    threshold: int = 50
-    patience: int = 150
+    lr: float = 1.4926e-5
+    threshold: float = 0.00256
+    patience: int = 300

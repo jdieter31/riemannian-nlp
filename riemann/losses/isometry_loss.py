@@ -96,7 +96,7 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     #
     # import ipdb; ipdb.set_trace()
 
-    pullback_metric += EPSILON * torch.eye(n)
+    pullback_metric += EPSILON * torch.eye(n, device = pullback_metric.device)
     rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()
 

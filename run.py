@@ -38,10 +38,8 @@ def train(args):
         loss_description = "N"
 
     wandb.init(project="retrofitting-manifolds",
-               name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}"
-                    f"->{config.model.target_manifold}{loss_description}",
                config=get_config().as_json(),
-               group="CyclicTree")
+               group="Nouns10D")
 
     # This command just preloads the training data.
     get_training_data()

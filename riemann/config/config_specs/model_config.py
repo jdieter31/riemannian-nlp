@@ -14,7 +14,7 @@ class ModelConfig(ConfigDict):
     """
     intermediate_manifold: str = "E1600"
     intermediate_layers: int = 2
-    target_manifold: str = "S60"
+    target_manifold: str = "S5,E5"
     # If this is enabled target_manifold must be the same as the featurizer -
     # the model will act as the identity
     baseline_mode: bool = False
