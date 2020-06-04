@@ -26,7 +26,7 @@ class ManifoldNNS:
         tqdm.write("Creating nns index")
         ivf_size = 2 ** (ceil(4 * sqrt(data_points.size(0)) - 1)).bit_length()
         index_flat = faiss.index_factory(data_points.size(-1),
-                                         f"PCAR16,IVF{ivf_size},SQ4")
+                                         "Flat") #f"PCAR16,IVF{ivf_size},SQ4")
 
         general_config = get_config().general
         _use_gpu: bool = general_config.gpu >= 0
@@ -41,7 +41,7 @@ class ManifoldNNS:
             self.index = index_flat
             params = faiss.ParameterSpace()
 
-        params.set_index_parameter(self.index, 'nprobe', 100)
+        # params.set_index_parameter(self.index, 'nprobe', 100)
         params.initialize(self.index)
 
         num_blocks = 200

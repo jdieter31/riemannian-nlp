@@ -28,7 +28,7 @@ def train(args):
     config = get_config()
     wandb.init(project="retrofitting-manifolds",
                config=get_config().as_json(),
-               group="NounsLearningSweep")
+               group="NounsSweep10D->12D")
 
     # This command just preloads the training data.
     get_training_data()
