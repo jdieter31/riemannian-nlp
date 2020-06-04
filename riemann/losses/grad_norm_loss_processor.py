@@ -93,10 +93,14 @@ class GradNormLossProcessor(BatchTask):
         if save_initial:
             self.initial_losses = torch.stack(self.initial_losses)
 
-        self.optimizer.zero_grad()
-
         g_norms = torch.tensor(g_norms).to(device=losses[0].device)
         losses = torch.stack(losses)
+
+        self.optimizer.zero_grad()
+
+        if torch.isnan(g_norms).any():
+            logger.warning("Encountered NaN gradient; skipping batch")
+            return
 
         # Compute mathematical quantities from GradNorm paper
         g_norm_avg = torch.prod(g_norms) ** (1 / g_norms.size(-1))  # g_norms.mean()
@@ -145,5 +149,6 @@ class GradNormLossProcessor(BatchTask):
         grads = torch.autograd.grad(loss, self.grad_norm_params, retain_graph=True)
         if any(torch.isnan(grad).any() for grad in grads):
             logger.warning("Encountered NaN gradient")
+            return float('nan')
         total_norm = torch.sqrt(sum([torch.norm(grad, 2)**2 for grad in grads]))
         return total_norm.item()
