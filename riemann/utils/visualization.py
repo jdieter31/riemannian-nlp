@@ -92,6 +92,7 @@ def manifold_scatter(manifold: RiemannianManifold, x: np.ndarray,
             scene = svg3d.Scene([svg3d.Group([surface, points])])
             camera = svg3d.Camera.create(eye=(10, 0, 40))
         else:
+            pass
 
 
     elif isinstance(manifold, ProductManifold):

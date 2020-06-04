@@ -4,16 +4,20 @@ Tool to train graph embeddings as detailed in "Retrofitting Manifolds to Semanti
 import argparse
 import json
 import sys
+from typing import cast
 
+from riemann import SphericalManifold
 from riemann.config.config import ConfigDictParser
 from riemann.config.config_loader import initialize_config, get_config
 import wandb
 
+from riemann.featurizers.graph_object_id_featurizer_embedder import GraphObjectIDFeaturizerEmbedder
 from riemann.graph_embedder import GraphEmbedder
 from riemann.graph_embedding_train_schedule import GraphEmbeddingTrainSchedule
 from riemann.model import get_model
 from riemann.data.data_loader import get_training_data, get_eval_data
-from riemann.visualize import plot
+from riemann.visualize import plot, plot_input, plot_output, project_to_ambient, \
+    draw_manifold_wireframe, draw_wireframe
 from riemann.evaluations.mean_rank import run_evaluation as run_mean_rank_evaluation
 from riemann.config.config_loader import get_config
 
@@ -26,7 +30,16 @@ def train(args):
     # Log this configuration to wandb
     # Initialize wandb dashboard
     config = get_config()
+    if config.loss.use_proximity_regularizer:
+        loss_description = "P"
+    elif config.loss.use_conformality_regularizer:
+        loss_description = f"C{config.loss.conformality:0.2f}"
+    else:
+        loss_description = "N"
+
     wandb.init(project="retrofitting-manifolds",
+               name=f"{config.model.intermediate_manifold}^{config.model.intermediate_layers}"
+                    f"->{config.model.target_manifold}{loss_description}",
                config=get_config().as_json(),
                group="NounsSweep10D->12D")
 
@@ -43,6 +56,7 @@ def train(args):
     # Save the model
     if args.model_file:
         model.to_file(args.model_file)
+
 
 def eval_model(args):
     # Initialize Config
@@ -71,17 +85,63 @@ def eval_model(args):
         run_mean_rank_evaluation(None, "reconstr", reconstruction=True)
 
 
-
-
 def plot_transformation(args):
     """
     Plots the manifold transformation learned by the given model.
     better represents the distances on a given graph.
     """
-    model = GraphEmbedder.from_file(args.model_file)
-    # Run plot with the data
-    fig = plot(model)
-    fig.show()
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+
+    MEDIUM_SIZE = 18
+    BIGGER_SIZE = 24
+
+    plt.rc('text', usetex=True)              # controls default text sizes
+    plt.rc('font', size=BIGGER_SIZE)         # controls default text sizes
+    plt.rc('font', family="serif")         # controls default text sizes
+    plt.rc('axes', titlesize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=MEDIUM_SIZE)    # legend fontsize
+
+    model: GraphObjectIDFeaturizerEmbedder = cast(GraphObjectIDFeaturizerEmbedder,
+                                                      GraphEmbedder.from_file(args.model_file))
+
+    inputs_tensor = model.get_featurizer_graph_embedder().retrieve_nodes(
+        model.graph_dataset.n_nodes()
+    )
+    inputs = inputs_tensor.detach().numpy()
+
+    if args.input:
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(111)
+        plot_input(ax, model, inputs)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        fig.tight_layout()
+        fig.show()
+        input("Press any key to exit.")
+    if args.output:
+        output_tensor = model.retrieve_nodes(model.graph_dataset.n_nodes())
+        outputs = output_tensor.detach().numpy()
+
+        outputs = project_to_ambient(model.out_manifold, outputs)
+        fig = plt.figure(figsize=(8, 8))
+        if outputs.shape[-1] == 2:
+            ax = fig.add_subplot(111)
+        else:
+            assert outputs.shape[-1] == 3
+            ax = fig.add_subplot(111, projection='3d')
+
+        draw_manifold_wireframe(ax, model.out_manifold)
+        draw_wireframe(ax, model.model, inputs)
+        plot_output(ax, model.graph_dataset, inputs, outputs)
+
+        fig.tight_layout()
+        fig.show()
+
+        input("Press any key to exit.")
 
 
 # noinspection DuplicatedCode
@@ -99,6 +159,8 @@ if __name__ == "__main__":
     command_parser.set_defaults(func=train)
 
     command_parser = subparsers.add_parser('plot', help=plot_transformation.__doc__)
+    command_parser.add_argument('-i', '--input', action="store_true", help="Draw input")
+    command_parser.add_argument('-o', '--output', action="store_true", help="Draw output")
     command_parser.add_argument('model_file', type=str,
                                 help="File to load model from")
     command_parser.set_defaults(func=plot_transformation)

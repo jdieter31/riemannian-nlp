@@ -59,8 +59,7 @@ class TrainSchedule(abc.ABC):
                                  total=n_batches,
                                  desc=prog_desc, dynamic_ncols=True):
             if count_iterations:
-                for task, repeat_every, cycle_on_iterations in \
-                        self.cyclic_tasks:
+                for task, repeat_every, cycle_on_iterations in self.cyclic_tasks:
 
                     if not cycle_on_iterations:
                         # This task is meant for epochs not iterations

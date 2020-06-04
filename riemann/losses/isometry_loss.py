@@ -14,6 +14,30 @@ EPSILON = 1e-8
 logger = logging.getLogger(__name__)
 
 
+def proximity_loss(model, input_embeddings: torch.Tensor):
+    """
+    Constructs an isometry.
+
+    Parameters:
+        model: model that takes in embeddings in original space and outputs embeddings in output
+               manifold space
+        input_embeddings (torch.Tensor): tensor of shape [batch_size,
+            embedding_sim] with embeddings in original space
+        in_manifold (RiemannianManifold): RiemannianManifold object
+            characterizing original space
+        out_manifold (RiemannianManifold): RiemannianManifold object
+            characterizing output space
+        out_dimension (int): dimension of tensors in out_manifold
+        conformality (float): The degree of conformality to use; a value of 1 implies we will use
+            a purely isometric loss. A value of 0 uses an unbounded conformal loss.
+
+    Returns:
+        pytorch scalar: computed loss
+    """
+    output_embeddings = model(input_embeddings)
+    return torch.mean(torch.norm(output_embeddings - input_embeddings, dim=-1)**2)
+
+
 def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
                   RiemannianManifold, out_manifold: RiemannianManifold,
                   out_dimension: int, conformality: float=1.0):
@@ -67,6 +91,9 @@ def isometry_loss(model, input_embeddings: torch.Tensor, in_manifold:
     sig_eig_t = torch.transpose(significant_eigenvec_batch, -2, -1)
     in_metric_reduced = torch.bmm(torch.bmm(sig_eig_t, in_metric_batch), significant_eigenvec_batch)
 
+    # We'll regularize the pullback metric a wee bit.
+    n = pullback_metric.shape[-1]
+    pullback_metric += EPSILON * torch.eye(n)
     rd = conformal_divergence(pullback_metric, in_metric_reduced, conformality)
     loss = rd.mean()
 
@@ -77,13 +104,12 @@ def riemannian_divergence(matrix_a: torch.Tensor, matrix_b: torch.Tensor):
     """
     Computes the Riemannian distance between two postive definite matrices
     """
+    # Add a small positive to get rid of degeneracy
     matrix_a_inv = torch.inverse(matrix_a)
     ainvb = torch.bmm(matrix_a_inv, matrix_b)
     eigenvalues, _ = torch.symeig(ainvb, eigenvectors=True)
-    if EPSILON > 0:
-        log_eig = torch.log(relu(eigenvalues) + EPSILON)
-    else:
-        log_eig = torch.log(relu(eigenvalues))
+
+    log_eig = torch.log(relu(eigenvalues) + EPSILON)
     # Filter potential nans
     if torch.isnan(log_eig).any():
         logger.warning("Found a nan in divergence score")

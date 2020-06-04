@@ -43,7 +43,6 @@ def get_optimizer() -> Optimizer:
     return optimizer
 
 def get_scheduler():
-
     global scheduler
     global optimizer
 
