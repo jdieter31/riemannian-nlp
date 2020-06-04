@@ -5,6 +5,7 @@ import argparse
 import json
 import sys
 from typing import cast
+import logging
 
 from riemann import SphericalManifold
 from riemann.config.config import ConfigDictParser
@@ -151,6 +152,7 @@ def plot_transformation(args):
 
 # noinspection DuplicatedCode
 if __name__ == "__main__":
+    logging.basicConfig()
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers()
     command_parser = subparsers.add_parser('train', help=train.__doc__)
